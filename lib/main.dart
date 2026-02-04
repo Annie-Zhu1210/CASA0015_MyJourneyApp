@@ -3,6 +3,7 @@ import 'screens/map_screen.dart';
 import 'screens/locations_screen.dart';
 import 'screens/share_screen.dart';
 import 'screens/settings_screen.dart';
+import 'widgets/animated_bottom_nav_bar.dart';
 
 void main() {
   runApp(const MyApp());
@@ -32,7 +33,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
-  // List of all your screens
   final List<Widget> _screens = [
     const MapScreen(),
     const LocationsScreen(),
@@ -62,25 +62,25 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      body: _screens[_selectedIndex], // Shows the selected screen
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        backgroundColor: Colors.white,
-        selectedItemColor: const Color.fromARGB(255, 151, 86, 0), // Dark yellow for SELECTED
-        unselectedItemColor: const Color.fromARGB(255, 255, 205, 39), // Light yellow for UNSELECTED
+      body: Column(
+        children: [
+          Expanded(
+            child: _screens[_selectedIndex],
+          ),
+        ],
+      ),
+      extendBody: true, // Allows body to extend behind bottom bar
+      bottomNavigationBar: AnimatedBottomNavBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
+        backgroundColor: Colors.white,
+        selectedItemColor: const Color.fromARGB(255, 151, 86, 0),
+        unselectedItemColor: const Color.fromARGB(255, 255, 205, 39),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.location_on),
-            label: 'Locations',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Locations'),
           BottomNavigationBarItem(icon: Icon(Icons.share), label: 'Share'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
+          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
