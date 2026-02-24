@@ -65,7 +65,10 @@ class _HomePageState extends State<HomePage> {
       body: Column(
         children: [
           Expanded(
-            child: _screens[_selectedIndex],
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _screens,
+            ),
           ),
         ],
       ),

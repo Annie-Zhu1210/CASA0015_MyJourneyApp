@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'dart:async';
 
 
 class MapScreen extends StatefulWidget {
@@ -15,6 +16,7 @@ class _MapScreenState extends State<MapScreen> {
   Position? _currentPosition;
   bool _isLoading = true;
   String _errorMessage = '';
+  StreamSubscription<Position>? _locationSubscription; 
 
   // Initial camera position centered on coordinates (0,0)
   static const CameraPosition _initialPosition = CameraPosition(
@@ -113,12 +115,13 @@ class _MapScreenState extends State<MapScreen> {
 
   // Start listening to real-time location updates
   void _startLocationUpdates() {
-    Geolocator.getPositionStream(
+    _locationSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
         distanceFilter: 10, // Update every 10 meters
       ),
     ).listen((Position position) {
+      if (!mounted) return;
       setState(() {
         _currentPosition = position;
       });
@@ -144,6 +147,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _locationSubscription?.cancel();
     _mapController?.dispose();
     super.dispose();
   }
