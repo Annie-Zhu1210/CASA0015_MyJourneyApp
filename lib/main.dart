@@ -49,30 +49,11 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 2,
-        centerTitle: true,
-        title: const Text(
-          'My Journey',
-          style: TextStyle(
-            color: Color.fromARGB(255, 255, 210, 75),
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: _screens,
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: _screens,
-            ),
-          ),
-        ],
-      ),
-      extendBody: true, // Allows body to extend behind bottom bar
+      extendBody: true,
       bottomNavigationBar: AnimatedBottomNavBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
@@ -82,7 +63,7 @@ class _HomePageState extends State<HomePage> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
           BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Locations'),
-          BottomNavigationBarItem(icon: Icon(Icons.share), label: 'Share'),
+          BottomNavigationBarItem(icon: Icon(Icons.public), label: 'World'),
           BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
