@@ -32,6 +32,12 @@
 	<string>This app needs access to your location to track your journey and show your current position on the map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>This app needs access to your location to track your journey.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>My Journey needs camera access to add photos to your check-ins.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>My Journey needs photo library access to upload images to your check-ins.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>My Journey needs microphone access for video recording.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

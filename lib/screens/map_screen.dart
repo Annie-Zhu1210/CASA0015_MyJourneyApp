@@ -1,3 +1,5 @@
+// lib/screens/map_screen.dart
+
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -5,6 +7,11 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/exploration_service.dart';
+import '../services/checkin_database.dart';
+import '../services/checkin_marker_builder.dart';
+import '../models/checkin_location.dart';
+import '../widgets/checkin/checkin_level1_dialog.dart';
+import '../widgets/checkin/checkin_info_panel.dart';
 
 const double kRevealRadiusMetres = 50.0;
 const double kBaseZoom = 15.0;
@@ -24,23 +31,158 @@ class _MapScreenState extends State<MapScreen> {
   StreamSubscription<Position>? _locationSubscription;
 
   List<VisitedPoint> _visitedPoints = [];
-
-  // Accurate screen positions — updated only when camera is idle
   List<Offset> _screenPositions = [];
   double _currentZoom = kBaseZoom;
   bool _isReprojectPending = false;
+
+  // ── Check-in state ───────────────────────────────────────────────────────
+  List<CheckInLocation> _checkIns = [];
+  final Map<String, BitmapDescriptor> _markerIcons = {};
+
+  // Level 1 dialog state
+  LatLng? _pendingLongPressPosition;
+  bool _showLevel1Dialog = false;
+
+  // Info panel state
+  CheckInLocation? _selectedCheckIn;
+  bool _showInfoPanel = false;
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(0, 0),
     zoom: 2,
   );
 
+  // ── Lifecycle ────────────────────────────────────────────────────────────
+
   @override
   void initState() {
     super.initState();
     _loadVisitedPoints();
+    _loadCheckIns();
     _initializeLocation();
   }
+
+  @override
+  void dispose() {
+    _locationSubscription?.cancel();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  // ── Check-in loading ─────────────────────────────────────────────────────
+
+  Future<void> _loadCheckIns() async {
+    final checkIns = await CheckInDatabase.loadAll();
+    if (!mounted) return;
+    setState(() => _checkIns = checkIns);
+    await _buildAllMarkerIcons();
+  }
+
+  Future<void> _buildAllMarkerIcons() async {
+    for (final c in _checkIns) {
+      // Always rebuild — ensures edited emojis are reflected immediately
+      final icon = await CheckInMarkerBuilder.build(c.emoji);
+      if (mounted) {
+        setState(() => _markerIcons[c.id] = icon);
+      }
+    }
+  }
+
+  Future<void> _addOrRefreshMarkerIcon(CheckInLocation c) async {
+    final icon = await CheckInMarkerBuilder.build(c.emoji);
+    if (mounted) {
+      setState(() => _markerIcons[c.id] = icon);
+    }
+  }
+
+  // ── Long press handling ──────────────────────────────────────────────────
+
+  void _onMapLongPress(LatLng position) {
+    setState(() {
+      _pendingLongPressPosition = position;
+      _showLevel1Dialog = true;
+      _showInfoPanel = false; // close any open info panel
+    });
+  }
+
+  void _dismissLevel1() {
+    setState(() {
+      _showLevel1Dialog = false;
+      _pendingLongPressPosition = null;
+    });
+  }
+
+  Future<void> _onCheckInSaved() async {
+    await _loadCheckIns();
+  }
+
+  // ── Marker tap → info panel ──────────────────────────────────────────────
+
+  void _onCheckInMarkerTapped(CheckInLocation c) {
+    setState(() {
+      _selectedCheckIn = c;
+      _showInfoPanel = true;
+      _showLevel1Dialog = false;
+    });
+  }
+
+  void _closeInfoPanel() {
+    setState(() {
+      _showInfoPanel = false;
+      _selectedCheckIn = null;
+    });
+  }
+
+  Future<void> _onCheckInEdited() async {
+    await _loadCheckIns();
+  }
+
+  Future<void> _onCheckInDeleted() async {
+    // Remove icon cache for deleted item
+    if (_selectedCheckIn != null) {
+      _markerIcons.remove(_selectedCheckIn!.id);
+    }
+    _closeInfoPanel();
+    await _loadCheckIns();
+  }
+
+  // ── Build marker set ─────────────────────────────────────────────────────
+
+  Set<Marker> _buildMarkers() {
+    final markers = <Marker>{};
+
+    // Current location marker (orange)
+    if (_currentPosition != null) {
+      markers.add(Marker(
+        markerId: const MarkerId('current_location'),
+        position:
+            LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
+        infoWindow: const InfoWindow(
+          title: 'You are here',
+          snippet: 'Current Location',
+        ),
+      ));
+    }
+
+    // Check-in markers
+    for (final c in _checkIns) {
+      final icon = _markerIcons[c.id];
+      if (icon == null) continue; // still building icon
+      markers.add(Marker(
+        markerId: MarkerId('checkin_${c.id}'),
+        position: LatLng(c.latitude, c.longitude),
+        icon: icon,
+        onTap: () => _onCheckInMarkerTapped(c),
+        // Suppress default info window
+        infoWindow: InfoWindow.noText,
+      ));
+    }
+
+    return markers;
+  }
+
+  // ── Exploration / fog of war (unchanged) ─────────────────────────────────
 
   Future<void> _loadVisitedPoints() async {
     final points = await ExplorationService.loadVisitedPoints();
@@ -150,12 +292,10 @@ class _MapScreenState extends State<MapScreen> {
     _reprojectAll();
   }
 
-  // During drag we only track zoom — overlay stays frozen in last good position
   void _onCameraMove(CameraPosition position) {
     setState(() => _currentZoom = position.zoom);
   }
 
-  // Camera has stopped — now do the accurate async reprojection
   void _onCameraIdle() {
     _reprojectAll();
   }
@@ -178,7 +318,6 @@ class _MapScreenState extends State<MapScreen> {
         setState(() => _screenPositions = positions);
       }
     } catch (_) {
-      // Map not ready — ignore
     } finally {
       _isReprojectPending = false;
     }
@@ -194,21 +333,23 @@ class _MapScreenState extends State<MapScreen> {
     return kRevealRadiusMetres / metersPerPixel;
   }
 
-  @override
-  void dispose() {
-    _locationSubscription?.cancel();
-    _mapController?.dispose();
-    super.dispose();
-  }
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        // ── Google Map ───────────────────────────────────────────────────
         GoogleMap(
           onMapCreated: _onMapCreated,
           onCameraMove: _onCameraMove,
           onCameraIdle: _onCameraIdle,
+          onLongPress: _onMapLongPress, // ← NEW: triggers check-in flow
+          onTap: (_) {
+            // Tapping the map dismisses open overlays
+            if (_showLevel1Dialog) _dismissLevel1();
+            if (_showInfoPanel) _closeInfoPanel();
+          },
           initialCameraPosition: _initialPosition,
           myLocationEnabled: true,
           myLocationButtonEnabled: false,
@@ -218,27 +359,10 @@ class _MapScreenState extends State<MapScreen> {
           tiltGesturesEnabled: true,
           rotateGesturesEnabled: true,
           mapType: MapType.normal,
-          markers: _currentPosition != null
-              ? {
-                  Marker(
-                    markerId: const MarkerId('current_location'),
-                    position: LatLng(
-                      _currentPosition!.latitude,
-                      _currentPosition!.longitude,
-                    ),
-                    icon: BitmapDescriptor.defaultMarkerWithHue(
-                      BitmapDescriptor.hueOrange,
-                    ),
-                    infoWindow: const InfoWindow(
-                      title: 'You are here',
-                      snippet: 'Current Location',
-                    ),
-                  ),
-                }
-              : {},
+          markers: _buildMarkers(),
         ),
 
-        // Fog overlay — frozen during drag, updated accurately when idle
+        // ── Fog of war ───────────────────────────────────────────────────
         if (!_isLoading &&
             _errorMessage.isEmpty &&
             _screenPositions.isNotEmpty)
@@ -253,6 +377,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
+        // ── Loading ──────────────────────────────────────────────────────
         if (_isLoading)
           Container(
             color: Colors.white,
@@ -263,6 +388,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
+        // ── Error ────────────────────────────────────────────────────────
         if (_errorMessage.isNotEmpty && !_isLoading)
           Container(
             color: Colors.white,
@@ -277,7 +403,8 @@ class _MapScreenState extends State<MapScreen> {
                     Text(
                       _errorMessage,
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                      style:
+                          TextStyle(color: Colors.grey[600], fontSize: 16),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton(
@@ -300,6 +427,7 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
+        // ── My location FAB ──────────────────────────────────────────────
         if (!_isLoading && _errorMessage.isEmpty)
           Positioned(
             bottom: 100,
@@ -327,14 +455,46 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ),
           ),
+
+        // ── Level 1 dialog ───────────────────────────────────────────────
+        if (_showLevel1Dialog && _pendingLongPressPosition != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _dismissLevel1,
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: CheckInLevel1Dialog(
+                  position: _pendingLongPressPosition!,
+                  onDismiss: _dismissLevel1,
+                  onCheckInSaved: _onCheckInSaved,
+                ),
+              ),
+            ),
+          ),
+
+        // ── Info panel ───────────────────────────────────────────────────
+        if (_showInfoPanel && _selectedCheckIn != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _closeInfoPanel,
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: CheckInInfoPanel(
+                  checkin: _selectedCheckIn!,
+                  onClose: _closeInfoPanel,
+                  onEdited: _onCheckInEdited,
+                  onDeleted: _onCheckInDeleted,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
 }
 
-// ---------------------------------------------------------------------------
-// Painter
-// ---------------------------------------------------------------------------
+// ── Fog of War painter (unchanged) ──────────────────────────────────────────
+
 class FogOfWarPainter extends CustomPainter {
   final List<Offset> screenPositions;
   final double revealRadius;
