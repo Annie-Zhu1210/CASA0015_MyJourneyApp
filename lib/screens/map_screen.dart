@@ -1,5 +1,3 @@
-// lib/screens/map_screen.dart
-
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -17,7 +15,11 @@ const double kRevealRadiusMetres = 50.0;
 const double kBaseZoom = 15.0;
 
 class MapScreen extends StatefulWidget {
-  const MapScreen({super.key});
+  /// Called whenever a check-in is added, edited, or deleted — so the parent
+  /// can refresh the shared [checkIns] list passed to LocationsScreen.
+  final VoidCallback? onCheckInsChanged;
+
+  const MapScreen({super.key, this.onCheckInsChanged});
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -80,7 +82,6 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _buildAllMarkerIcons() async {
     for (final c in _checkIns) {
-      // Always rebuild — ensures edited emojis are reflected immediately
       final icon = await CheckInMarkerBuilder.build(c.emoji);
       if (mounted) {
         setState(() => _markerIcons[c.id] = icon);
@@ -101,7 +102,7 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _pendingLongPressPosition = position;
       _showLevel1Dialog = true;
-      _showInfoPanel = false; // close any open info panel
+      _showInfoPanel = false;
     });
   }
 
@@ -114,6 +115,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _onCheckInSaved() async {
     await _loadCheckIns();
+    widget.onCheckInsChanged?.call();
   }
 
   // ── Marker tap → info panel ──────────────────────────────────────────────
@@ -135,15 +137,16 @@ class _MapScreenState extends State<MapScreen> {
 
   Future<void> _onCheckInEdited() async {
     await _loadCheckIns();
+    widget.onCheckInsChanged?.call();
   }
 
   Future<void> _onCheckInDeleted() async {
-    // Remove icon cache for deleted item
     if (_selectedCheckIn != null) {
       _markerIcons.remove(_selectedCheckIn!.id);
     }
     _closeInfoPanel();
     await _loadCheckIns();
+    widget.onCheckInsChanged?.call();
   }
 
   // ── Build marker set ─────────────────────────────────────────────────────
@@ -151,7 +154,6 @@ class _MapScreenState extends State<MapScreen> {
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
 
-    // Current location marker (orange)
     if (_currentPosition != null) {
       markers.add(Marker(
         markerId: const MarkerId('current_location'),
@@ -165,16 +167,14 @@ class _MapScreenState extends State<MapScreen> {
       ));
     }
 
-    // Check-in markers
     for (final c in _checkIns) {
       final icon = _markerIcons[c.id];
-      if (icon == null) continue; // still building icon
+      if (icon == null) continue;
       markers.add(Marker(
         markerId: MarkerId('checkin_${c.id}'),
         position: LatLng(c.latitude, c.longitude),
         icon: icon,
         onTap: () => _onCheckInMarkerTapped(c),
-        // Suppress default info window
         infoWindow: InfoWindow.noText,
       ));
     }
@@ -182,7 +182,7 @@ class _MapScreenState extends State<MapScreen> {
     return markers;
   }
 
-  // ── Exploration / fog of war (unchanged) ─────────────────────────────────
+  // ── Exploration / fog of war ──────────────────────────────────────────────
 
   Future<void> _loadVisitedPoints() async {
     final points = await ExplorationService.loadVisitedPoints();
@@ -344,9 +344,8 @@ class _MapScreenState extends State<MapScreen> {
           onMapCreated: _onMapCreated,
           onCameraMove: _onCameraMove,
           onCameraIdle: _onCameraIdle,
-          onLongPress: _onMapLongPress, // ← NEW: triggers check-in flow
+          onLongPress: _onMapLongPress,
           onTap: (_) {
-            // Tapping the map dismisses open overlays
             if (_showLevel1Dialog) _dismissLevel1();
             if (_showInfoPanel) _closeInfoPanel();
           },
@@ -493,7 +492,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
-// ── Fog of War painter (unchanged) ──────────────────────────────────────────
+// ── Fog of War painter ───────────────────────────────────────────────────────
 
 class FogOfWarPainter extends CustomPainter {
   final List<Offset> screenPositions;

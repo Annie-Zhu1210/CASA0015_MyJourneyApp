@@ -4,6 +4,8 @@ import 'screens/locations_screen.dart';
 import 'screens/share_screen.dart';
 import 'screens/settings_screen.dart';
 import 'widgets/animated_bottom_nav_bar.dart';
+import 'models/checkin_location.dart';
+import 'services/checkin_database.dart';
 
 void main() {
   runApp(const MyApp());
@@ -33,17 +35,24 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    const MapScreen(),
-    const LocationsScreen(),
-    const ShareScreen(),
-    const SettingsScreen(),
-  ];
+  // ── Shared check-ins state ───────────────────────────────────────────────
+  List<CheckInLocation> _checkIns = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCheckIns();
+  }
+
+  Future<void> _loadCheckIns() async {
+    final checkIns = await CheckInDatabase.loadAll();
+    if (!mounted) return;
+    setState(() => _checkIns = checkIns);
+  }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    if (index == 1) _loadCheckIns();
+    setState(() => _selectedIndex = index);
   }
 
   @override
@@ -51,7 +60,15 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: IndexedStack(
         index: _selectedIndex,
-        children: _screens,
+        children: [
+          MapScreen(onCheckInsChanged: _loadCheckIns),
+          LocationsScreen(
+            checkIns: _checkIns,
+            onChanged: _loadCheckIns,
+          ),
+          const ShareScreen(),
+          const SettingsScreen(),
+        ],
       ),
       extendBody: true,
       bottomNavigationBar: AnimatedBottomNavBar(
@@ -62,9 +79,11 @@ class _HomePageState extends State<HomePage> {
         unselectedItemColor: const Color.fromARGB(255, 255, 205, 39),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
-          BottomNavigationBarItem(icon: Icon(Icons.location_on), label: 'Locations'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.location_on), label: 'Locations'),
           BottomNavigationBarItem(icon: Icon(Icons.public), label: 'World'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.settings), label: 'Settings'),
         ],
       ),
     );
