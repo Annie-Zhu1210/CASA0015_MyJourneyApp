@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 import '../../models/checkin_location.dart';
 import '../../services/checkin_database.dart';
@@ -38,6 +40,8 @@ class _CheckInEditorState extends State<CheckInEditor> {
 
   bool _hasChanges = false;
   bool _isSaving = false;
+  // Resolved full paths for thumbnail preview — kept in sync with _mediaPaths
+  List<String> _resolvedPaths = [];
 
   @override
   void initState() {
@@ -50,6 +54,12 @@ class _CheckInEditorState extends State<CheckInEditor> {
       _details = e.details;
       _mediaPaths = List.from(e.mediaPaths);
     }
+    _resolveExistingPaths();
+  }
+
+  Future<void> _resolveExistingPaths() async {
+    final resolved = await CheckInDatabase.resolveMediaPaths(_mediaPaths);
+    if (mounted) setState(() => _resolvedPaths = resolved);
   }
 
   void _markChanged() => _hasChanges = true;
@@ -114,6 +124,28 @@ class _CheckInEditorState extends State<CheckInEditor> {
     }
   }
 
+  // ── Permanent storage helper ──────────────────────────────────────────────
+  /// Copies a file from its current path (which may be a tmp/ location that
+  /// iOS can delete at any time) into the app's permanent Documents directory.
+  /// Returns the new permanent path.
+  Future<String> _copyToAppDir(String sourcePath) async {
+    final dir = await getApplicationDocumentsDirectory();
+    final photosDir = Directory(p.join(dir.path, 'checkin_photos'));
+    if (!photosDir.existsSync()) {
+      photosDir.createSync(recursive: true);
+    }
+    final ext = p.extension(sourcePath).isNotEmpty
+        ? p.extension(sourcePath)
+        : '.jpg';
+    // Use a UUID filename so it is unique and collision-free
+    final fileName = '${const Uuid().v4()}$ext';
+    final destPath = p.join(photosDir.path, fileName);
+    await File(sourcePath).copy(destPath);
+    // Return the full path — caller stores filename in DB and full path
+    // in _resolvedPaths for immediate preview.
+    return destPath;
+  }
+
   // ── Media upload — multi-select from gallery, single from camera ──────────
   Future<void> _openMediaPicker() async {
     final choice = await showModalBottomSheet<String>(
@@ -162,8 +194,14 @@ class _CheckInEditorState extends State<CheckInEditor> {
         // Multi-select: iOS shows native multi-select picker with a confirm button
         final files = await picker.pickMultiImage(imageQuality: 90);
         if (files.isNotEmpty && mounted) {
+          // Copy every file out of tmp/ into permanent Documents storage
+          final fullPaths = await Future.wait(
+            files.map((f) => _copyToAppDir(f.path)),
+          );
           setState(() {
-            _mediaPaths = [..._mediaPaths, ...files.map((f) => f.path)];
+            // DB stores only the filename; _resolvedPaths stores full path for preview
+            _mediaPaths = [..._mediaPaths, ...fullPaths.map(p.basename)];
+            _resolvedPaths = [..._resolvedPaths, ...fullPaths];
             _markChanged();
           });
         }
@@ -171,8 +209,11 @@ class _CheckInEditorState extends State<CheckInEditor> {
         // Camera: single capture
         final file = await picker.pickImage(source: ImageSource.camera);
         if (file != null && mounted) {
+          // Copy out of tmp/ into permanent Documents storage
+          final fullPath = await _copyToAppDir(file.path);
           setState(() {
-            _mediaPaths = [..._mediaPaths, file.path];
+            _mediaPaths = [..._mediaPaths, p.basename(fullPath)];
+            _resolvedPaths = [..._resolvedPaths, fullPath];
             _markChanged();
           });
         }
@@ -189,6 +230,9 @@ class _CheckInEditorState extends State<CheckInEditor> {
   void _removeMedia(int index) {
     setState(() {
       _mediaPaths = List.from(_mediaPaths)..removeAt(index);
+      if (index < _resolvedPaths.length) {
+        _resolvedPaths = List.from(_resolvedPaths)..removeAt(index);
+      }
       _markChanged();
     });
   }
@@ -199,7 +243,7 @@ class _CheckInEditorState extends State<CheckInEditor> {
       context,
       MaterialPageRoute(
         builder: (_) => _ImageViewerScreen(
-          paths: _mediaPaths,
+          paths: _resolvedPaths.isNotEmpty ? _resolvedPaths : _mediaPaths,
           initialIndex: initialIndex,
         ),
       ),
@@ -389,7 +433,9 @@ class _CheckInEditorState extends State<CheckInEditor> {
                           if (_mediaPaths.isNotEmpty) ...[
                             const SizedBox(height: 12),
                             _MediaThumbnailRow(
-                              paths: _mediaPaths,
+                              paths: _resolvedPaths.isNotEmpty
+                                  ? _resolvedPaths
+                                  : _mediaPaths,
                               onRemove: _removeMedia,
                               onTap: _openImageViewer,
                             ),

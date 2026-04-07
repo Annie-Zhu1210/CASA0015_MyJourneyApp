@@ -168,6 +168,7 @@ class _LocationCardState extends State<_LocationCard> {
       final placemarks = await placemarkFromCoordinates(
         widget.checkIn.latitude,
         widget.checkIn.longitude,
+        localeIdentifier: 'en_US',
       );
       if (placemarks.isNotEmpty && mounted) {
         final p = placemarks.first;

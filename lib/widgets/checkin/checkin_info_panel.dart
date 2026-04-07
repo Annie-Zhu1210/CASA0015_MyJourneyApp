@@ -79,7 +79,7 @@ class _InfoImageViewerScreenState extends State<_InfoImageViewerScreen> {
 
 /// Floating panel shown when the user taps a saved check-in marker.
 /// Shows all saved info with Edit, Delete, and Close options.
-class CheckInInfoPanel extends StatelessWidget {
+class CheckInInfoPanel extends StatefulWidget {
   final CheckInLocation checkin;
   final VoidCallback onClose;
   final VoidCallback onEdited;
@@ -92,6 +92,25 @@ class CheckInInfoPanel extends StatelessWidget {
     required this.onEdited,
     required this.onDeleted,
   });
+
+  @override
+  State<CheckInInfoPanel> createState() => _CheckInInfoPanelState();
+}
+
+class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
+  List<String> _resolvedPaths = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvePaths();
+  }
+
+  Future<void> _resolvePaths() async {
+    final resolved =
+        await CheckInDatabase.resolveMediaPaths(widget.checkin.mediaPaths);
+    if (mounted) setState(() => _resolvedPaths = resolved);
+  }
 
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
@@ -114,7 +133,7 @@ class CheckInInfoPanel extends StatelessWidget {
             children: [
               const TextSpan(text: 'Are you sure you want to delete '),
               TextSpan(
-                text: checkin.name ?? checkin.displayLabel,
+                text: widget.checkin.name ?? widget.checkin.displayLabel,
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const TextSpan(text: '? This cannot be undone.'),
@@ -143,13 +162,14 @@ class CheckInInfoPanel extends StatelessWidget {
     );
 
     if (confirmed == true) {
-      await CheckInDatabase.delete(checkin.id);
-      onDeleted();
+      await CheckInDatabase.delete(widget.checkin.id);
+      widget.onDeleted();
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final checkin = widget.checkin;
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
@@ -215,7 +235,7 @@ class CheckInInfoPanel extends StatelessWidget {
                           ),
                         ),
                         IconButton(
-                          onPressed: onClose,
+                          onPressed: widget.onClose,
                           icon: const Icon(Icons.close_rounded,
                               color: Color(0xFF975600)),
                           tooltip: 'Close',
@@ -263,8 +283,7 @@ class CheckInInfoPanel extends StatelessWidget {
                             const SizedBox(height: 14),
                           ],
 
-                          // Media — issue 5: removed 📷 emoji from label
-                          // Issue 2: thumbnails are tappable for full view
+                          // Media
                           if (checkin.mediaPaths.isNotEmpty) ...[
                             const _SectionLabel(label: 'Photos'),
                             const SizedBox(height: 8),
@@ -276,15 +295,21 @@ class CheckInInfoPanel extends StatelessWidget {
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(width: 8),
                                 itemBuilder: (ctx, i) {
-                                  final file =
-                                      File(checkin.mediaPaths[i]);
+                                  // Use resolved path if available, else fall
+                                  // back to stored path while resolving
+                                  final path = i < _resolvedPaths.length
+                                      ? _resolvedPaths[i]
+                                      : checkin.mediaPaths[i];
+                                  final file = File(path);
                                   return GestureDetector(
                                     onTap: () => Navigator.push(
                                       ctx,
                                       MaterialPageRoute(
                                         builder: (_) =>
                                             _InfoImageViewerScreen(
-                                          paths: checkin.mediaPaths,
+                                          paths: _resolvedPaths.isNotEmpty
+                                              ? _resolvedPaths
+                                              : checkin.mediaPaths,
                                           initialIndex: i,
                                         ),
                                       ),
@@ -354,15 +379,15 @@ class CheckInInfoPanel extends StatelessWidget {
                                 flex: 2,
                                 child: ElevatedButton.icon(
                                   onPressed: () {
-                                    onClose();
+                                    widget.onClose();
                                     showDialog(
                                       context: context,
                                       barrierDismissible: false,
                                       builder: (_) => CheckInEditor(
                                         position:
-                                            _latLngFromCheckin(checkin),
-                                        existing: checkin,
-                                        onSaved: onEdited,
+                                            _latLngFromCheckin(widget.checkin),
+                                        existing: widget.checkin,
+                                        onSaved: widget.onEdited,
                                       ),
                                     );
                                   },

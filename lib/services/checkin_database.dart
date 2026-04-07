@@ -43,6 +43,28 @@ class CheckInDatabase {
     );
   }
 
+  // ── Path resolution ────────────────────────────────────────────────────────
+
+  /// Resolves a list of stored filenames (or legacy absolute paths) into
+  /// current absolute paths under Documents/checkin_photos/.
+  ///
+  /// Storing only filenames means reinstalling the app — which changes the
+  /// container UUID in the absolute path — never breaks stored references.
+  /// Legacy absolute paths (from before this fix) are passed through as-is
+  /// so old entries degrade gracefully rather than crashing.
+  static Future<List<String>> resolveMediaPaths(
+      List<String> storedPaths) async {
+    if (storedPaths.isEmpty) return [];
+    final dir = await getApplicationDocumentsDirectory();
+    final photosDir = p.join(dir.path, 'checkin_photos');
+    return storedPaths.map((stored) {
+      // If it already looks like an absolute path, return it unchanged.
+      // This handles any entries saved before the filename-only fix.
+      if (stored.startsWith('/')) return stored;
+      return p.join(photosDir, stored);
+    }).toList();
+  }
+
   // ── CRUD ──────────────────────────────────────────────────────────────────
 
   /// Insert a new check-in

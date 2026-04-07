@@ -35,6 +35,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
 
+  // GlobalKey lets us call refresh() on MapScreen from outside
+  final GlobalKey<MapScreenState> _mapKey = GlobalKey<MapScreenState>();
+
   // ── Shared check-ins state ───────────────────────────────────────────────
   List<CheckInLocation> _checkIns = [];
 
@@ -48,6 +51,8 @@ class _HomePageState extends State<HomePage> {
     final checkIns = await CheckInDatabase.loadAll();
     if (!mounted) return;
     setState(() => _checkIns = checkIns);
+    // Also tell the map to reload its own internal marker list
+    _mapKey.currentState?.refresh();
   }
 
   void _onItemTapped(int index) {
@@ -61,7 +66,7 @@ class _HomePageState extends State<HomePage> {
       body: IndexedStack(
         index: _selectedIndex,
         children: [
-          MapScreen(onCheckInsChanged: _loadCheckIns),
+          MapScreen(key: _mapKey, onCheckInsChanged: _loadCheckIns),
           LocationsScreen(
             checkIns: _checkIns,
             onChanged: _loadCheckIns,

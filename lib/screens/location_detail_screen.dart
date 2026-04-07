@@ -2,6 +2,7 @@
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import '../models/checkin_location.dart';
 import '../services/checkin_database.dart';
@@ -31,11 +32,41 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   // We keep a local mutable copy so edits reflect immediately on this screen
   // without needing to pop and re-open.
   late CheckInLocation _checkIn;
+  String _place = '';
+  List<String> _resolvedPaths = [];
 
   @override
   void initState() {
     super.initState();
     _checkIn = widget.checkIn;
+    _fetchPlace();
+    _resolvePaths();
+  }
+
+  Future<void> _resolvePaths() async {
+    final resolved =
+        await CheckInDatabase.resolveMediaPaths(_checkIn.mediaPaths);
+    if (mounted) setState(() => _resolvedPaths = resolved);
+  }
+
+  Future<void> _fetchPlace() async {
+    try {
+      final placemarks = await placemarkFromCoordinates(
+        _checkIn.latitude,
+        _checkIn.longitude,
+        localeIdentifier: 'en_US',
+      );
+      if (placemarks.isNotEmpty && mounted) {
+        final p = placemarks.first;
+        final parts = <String>[
+          if (p.locality != null && p.locality!.isNotEmpty) p.locality!,
+          if (p.country != null && p.country!.isNotEmpty) p.country!,
+        ];
+        if (mounted) setState(() => _place = parts.join(', '));
+      }
+    } catch (_) {
+      // leave _place empty — coordinates line still shows
+    }
   }
 
   // ── Delete ───────────────────────────────────────────────────────────────
@@ -105,12 +136,15 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         position: _latLngFromCheckin(_checkIn),
         existing: _checkIn,
         onSaved: () async {
-          // Reload from DB so local copy reflects the edit
           final updated = await CheckInDatabase.loadAll();
           final fresh =
               updated.where((c) => c.id == _checkIn.id).firstOrNull;
           if (fresh != null && mounted) {
             setState(() => _checkIn = fresh);
+            // Re-resolve paths for any newly added photos
+            final resolved =
+                await CheckInDatabase.resolveMediaPaths(fresh.mediaPaths);
+            if (mounted) setState(() => _resolvedPaths = resolved);
           }
           widget.onChanged();
         },
@@ -268,18 +302,36 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
 
   Widget _buildCoordRow() {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.location_on_outlined,
-            size: 16, color: const Color(0xFFB87000).withOpacity(0.7)),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(Icons.location_on_outlined,
+              size: 16, color: const Color(0xFFB87000).withOpacity(0.7)),
+        ),
         const SizedBox(width: 5),
-        Text(
-          '${_checkIn.latitude.toStringAsFixed(5)}, '
-          '${_checkIn.longitude.toStringAsFixed(5)}',
-          style: TextStyle(
-            fontSize: 13,
-            color: const Color(0xFF3E1F00).withOpacity(0.45),
-            fontFeatures: const [FontFeature.tabularFigures()],
-          ),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_place.isNotEmpty)
+              Text(
+                _place,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF3E1F00),
+                ),
+              ),
+            Text(
+              '${_checkIn.latitude.toStringAsFixed(5)}, '
+              '${_checkIn.longitude.toStringAsFixed(5)}',
+              style: TextStyle(
+                fontSize: 12,
+                color: const Color(0xFF3E1F00).withOpacity(0.45),
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -319,13 +371,18 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         itemCount: _checkIn.mediaPaths.length,
         separatorBuilder: (_, __) => const SizedBox(width: 10),
         itemBuilder: (ctx, i) {
-          final file = File(_checkIn.mediaPaths[i]);
+          final path = i < _resolvedPaths.length
+              ? _resolvedPaths[i]
+              : _checkIn.mediaPaths[i];
+          final file = File(path);
           return GestureDetector(
             onTap: () => Navigator.push(
               ctx,
               MaterialPageRoute(
                 builder: (_) => _FullScreenImageViewer(
-                  paths: _checkIn.mediaPaths,
+                  paths: _resolvedPaths.isNotEmpty
+                      ? _resolvedPaths
+                      : _checkIn.mediaPaths,
                   initialIndex: i,
                 ),
               ),

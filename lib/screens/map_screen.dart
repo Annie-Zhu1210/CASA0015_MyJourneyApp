@@ -1,3 +1,5 @@
+// lib/screens/map_screen.dart
+
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -22,10 +24,10 @@ class MapScreen extends StatefulWidget {
   const MapScreen({super.key, this.onCheckInsChanged});
 
   @override
-  State<MapScreen> createState() => _MapScreenState();
+  State<MapScreen> createState() => MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class MapScreenState extends State<MapScreen> {
   GoogleMapController? _mapController;
   Position? _currentPosition;
   bool _isLoading = true;
@@ -36,6 +38,10 @@ class _MapScreenState extends State<MapScreen> {
   List<Offset> _screenPositions = [];
   double _currentZoom = kBaseZoom;
   bool _isReprojectPending = false;
+
+  /// Called externally via GlobalKey to force a reload of check-ins,
+  /// e.g. after a delete or edit from the Locations screen.
+  Future<void> refresh() => _loadCheckIns();
 
   // ── Check-in state ───────────────────────────────────────────────────────
   List<CheckInLocation> _checkIns = [];
