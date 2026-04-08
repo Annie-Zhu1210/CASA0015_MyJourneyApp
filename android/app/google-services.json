@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "827304863108",
+    "project_id": "my-journey-app-7191e",
+    "storage_bucket": "my-journey-app-7191e.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:827304863108:android:65442a8474a5253c0929d1",
+        "android_client_info": {
+          "package_name": "com.example.my_journey"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "827304863108-03srpqetoih9qgna227t1q2ufkc97rsa.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAslXc2M4Gnl2iNMXpgAj_k_WLYS1PShQo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "827304863108-03srpqetoih9qgna227t1q2ufkc97rsa.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "827304863108-lt1m14e8h2c7htb6tk5qof447efm2n2a.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.annie.myjourney"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
