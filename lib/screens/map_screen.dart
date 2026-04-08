@@ -188,7 +188,7 @@ class MapScreenState extends State<MapScreen> {
     return markers;
   }
 
-  // ── Exploration / fog of war ──────────────────────────────────────────────
+  // Exploration
 
   Future<void> _loadVisitedPoints() async {
     final points = await ExplorationService.loadVisitedPoints();
@@ -367,14 +367,14 @@ class MapScreenState extends State<MapScreen> {
           markers: _buildMarkers(),
         ),
 
-        // ── Fog of war ───────────────────────────────────────────────────
+        // Exploration Path
         if (!_isLoading &&
             _errorMessage.isEmpty &&
             _screenPositions.isNotEmpty)
           Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(
-                painter: FogOfWarPainter(
+                painter: ExplorationPathPainter(
                   screenPositions: _screenPositions,
                   revealRadius: _revealRadius(),
                 ),
@@ -498,13 +498,13 @@ class MapScreenState extends State<MapScreen> {
   }
 }
 
-// ── Fog of War painter ───────────────────────────────────────────────────────
+// Exploration Path Painter
 
-class FogOfWarPainter extends CustomPainter {
+class ExplorationPathPainter extends CustomPainter {
   final List<Offset> screenPositions;
   final double revealRadius;
 
-  const FogOfWarPainter({
+  const ExplorationPathPainter({
     required this.screenPositions,
     required this.revealRadius,
   });
@@ -545,7 +545,7 @@ class FogOfWarPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(FogOfWarPainter oldDelegate) {
+  bool shouldRepaint(ExplorationPathPainter oldDelegate) {
     return oldDelegate.screenPositions != screenPositions ||
         oldDelegate.revealRadius != revealRadius;
   }

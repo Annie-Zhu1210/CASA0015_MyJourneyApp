@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'screens/map_screen.dart';
 import 'screens/locations_screen.dart';
-import 'screens/share_screen.dart';
+import 'screens/world_screen.dart';
 import 'screens/settings_screen.dart';
 import 'widgets/animated_bottom_nav_bar.dart';
 import 'models/checkin_location.dart';
@@ -71,7 +71,7 @@ class _HomePageState extends State<HomePage> {
             checkIns: _checkIns,
             onChanged: _loadCheckIns,
           ),
-          const ShareScreen(),
+          const WorldScreen(),
           const SettingsScreen(),
         ],
       ),

@@ -42,6 +42,7 @@ app.*.map.json
 # API keys
 ios/Runner/Secrets.swift
 
+
 # Auto-generated files
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
@@ -54,3 +55,4 @@ windows/flutter/generated_plugin_registrant.cc
 windows/flutter/generated_plugins.cmake
 ios/Pods/
 macos/Podfile
+lib/constants/secrets.dart
