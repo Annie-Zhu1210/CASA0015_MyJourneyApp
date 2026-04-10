@@ -129,6 +129,7 @@ class _HomePageState extends State<HomePage> {
               const WorldScreen(),
               SettingsScreen(
                 onMapStyleChanged: () => _loadMapStyle(),
+                onAvatarChanged:   () => _mapKey.currentState?.refreshAvatar(),
               ),
             ],
           ),

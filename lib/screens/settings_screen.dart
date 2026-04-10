@@ -9,8 +9,13 @@ import 'dart:io' as dart_io;
 
 class SettingsScreen extends StatefulWidget {
   final VoidCallback? onMapStyleChanged;
+  final VoidCallback? onAvatarChanged;
 
-  const SettingsScreen({super.key, this.onMapStyleChanged});
+  const SettingsScreen({
+    super.key,
+    this.onMapStyleChanged,
+    this.onAvatarChanged,
+  });
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -53,6 +58,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _profile = {...?_profile, 'photoUrl': picked.path};
       });
+      await UserProfileService.updatePhotoUrl(picked.path);
+      widget.onAvatarChanged?.call();
     }
   }
 
