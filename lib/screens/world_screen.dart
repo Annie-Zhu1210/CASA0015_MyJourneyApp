@@ -311,7 +311,7 @@ class _StatCard extends StatelessWidget {
                 ),
               ),
 
-            // Coming soon badge
+            
             if (isComingSoon)
               Positioned(
                 top: 10,

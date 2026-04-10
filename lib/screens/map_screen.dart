@@ -1,5 +1,3 @@
-// lib/screens/map_screen.dart
-
 import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -12,16 +10,17 @@ import '../services/checkin_marker_builder.dart';
 import '../models/checkin_location.dart';
 import '../widgets/checkin/checkin_level1_dialog.dart';
 import '../widgets/checkin/checkin_info_panel.dart';
+import '../services/user_profile_service.dart';
 
 const double kRevealRadiusMetres = 50.0;
 const double kBaseZoom = 15.0;
 
 class MapScreen extends StatefulWidget {
-  /// Called whenever a check-in is added, edited, or deleted — so the parent
-  /// can refresh the shared [checkIns] list passed to LocationsScreen.
-  final VoidCallback? onCheckInsChanged;
 
-  const MapScreen({super.key, this.onCheckInsChanged});
+  final VoidCallback? onCheckInsChanged;
+  final String mapStyle;
+
+  const MapScreen({super.key, this.onCheckInsChanged, this.mapStyle = 'standard'});
 
   @override
   State<MapScreen> createState() => MapScreenState();
@@ -60,6 +59,16 @@ class MapScreenState extends State<MapScreen> {
     zoom: 2,
   );
 
+  // Map Style
+  Future<void> _applyMapStyle() async {
+  if (_mapController == null) return;
+  if (widget.mapStyle == 'dark') {
+    await _mapController!.setMapStyle(UserProfileService.darkMapStyle);
+  } else {
+    await _mapController!.setMapStyle(null); // resets to default
+  }
+}
+
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   @override
@@ -68,6 +77,14 @@ class MapScreenState extends State<MapScreen> {
     _loadVisitedPoints();
     _loadCheckIns();
     _initializeLocation();
+  }
+
+  @override
+  void didUpdateWidget(MapScreen oldWidget) {
+   super.didUpdateWidget(oldWidget);
+   if (oldWidget.mapStyle != widget.mapStyle) {
+    _applyMapStyle();
+   }
   }
 
   @override
@@ -296,6 +313,7 @@ class MapScreenState extends State<MapScreen> {
       );
     }
     _reprojectAll();
+    _applyMapStyle();
   }
 
   void _onCameraMove(CameraPosition position) {
@@ -363,7 +381,7 @@ class MapScreenState extends State<MapScreen> {
           scrollGesturesEnabled: true,
           tiltGesturesEnabled: true,
           rotateGesturesEnabled: true,
-          mapType: MapType.normal,
+          mapType: widget.mapStyle == 'satellite' ? MapType.satellite : MapType.normal,
           markers: _buildMarkers(),
         ),
 
