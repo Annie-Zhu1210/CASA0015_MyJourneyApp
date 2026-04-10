@@ -1019,8 +1019,8 @@ class _CollectionCard extends StatelessWidget {
                 height: 70,
                 decoration: BoxDecoration(
                   color: isDropTarget
-                      ? const Color(0xFFFFB300)
-                      : const Color(0xFFFFD227),
+                      ? const Color(0xFFB84400)
+                      : const Color(0xFFE05A00),
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     bottomLeft: Radius.circular(16),
@@ -1045,7 +1045,7 @@ class _CollectionCard extends StatelessWidget {
               Container(
                 width: 3,
                 height: 70,
-                color: const Color(0xFFFFD227).withOpacity(0.4),
+                color: const Color(0xFFE05A00).withOpacity(0.4),
               ),
 
               // ── Title + count ─────────────────────────────────────────
@@ -1160,7 +1160,7 @@ class _UngroupedLocationCard extends StatelessWidget {
             width: 90,
             height: 70,
             decoration: const BoxDecoration(
-              color: Color(0xFFFFD6E0),
+              color: Color(0xFFFFD227),
               borderRadius: BorderRadius.only(
                 topLeft: Radius.circular(16),
                 bottomLeft: Radius.circular(16),
@@ -1184,7 +1184,7 @@ class _UngroupedLocationCard extends StatelessWidget {
           Container(
               width: 3,
               height: 70,
-              color: const Color(0xFFFFD6E0).withOpacity(0.6)),
+              color: const Color(0xFFFFD227).withOpacity(0.6)),
 
           // ── Name ─────────────────────────────────────────────────────
           Expanded(

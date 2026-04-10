@@ -550,7 +550,7 @@ class _AddLocationsSheetState extends State<_AddLocationsSheet> {
                           width: 80,
                           height: 62,
                           decoration: const BoxDecoration(
-                            color: Color(0xFFFFD6E0),
+                            color: Color(0xFFFFD227),
                             borderRadius: BorderRadius.only(
                               topLeft: Radius.circular(12),
                               bottomLeft: Radius.circular(12),
@@ -706,7 +706,7 @@ class _LocationCard extends StatelessWidget {
                 width: 90,
                 height: 70,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFFD6E0),
+                  color: Color(0xFFFFD227),
                   borderRadius: BorderRadius.only(
                     topLeft: Radius.circular(16),
                     bottomLeft: Radius.circular(16),
@@ -729,7 +729,7 @@ class _LocationCard extends StatelessWidget {
               Container(
                   width: 3,
                   height: 70,
-                  color: const Color(0xFFFFD6E0).withOpacity(0.6)),
+                  color: const Color(0xFFFFD227).withOpacity(0.6)),
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
