@@ -1,60 +1,15 @@
 import 'package:flutter/material.dart';
-import 'screens/map_screen.dart';
-import 'screens/locations_screen.dart';
-import 'screens/world_screen.dart';
-import 'screens/settings_screen.dart';
-import 'screens/login_screen.dart';
-import 'widgets/animated_bottom_nav_bar.dart';
-import 'widgets/splash_overlay.dart';
-import 'models/checkin_location.dart';
-import 'services/checkin_database.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
 import 'package:flutter/cupertino.dart';
-import 'services/user_profile_service.dart';
-
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  runApp(const MyApp());
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'My Journey',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      debugShowCheckedModeBanner: false,
-      home: SplashOverlay(
-        child: StreamBuilder<User?>(
-          stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                backgroundColor: Color(0xFFFFF8E7),
-                body: Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFF5C842),
-                  ),
-                ),
-              );
-            }
-            if (snapshot.hasData) {
-              return const HomePage();
-            }
-            return const LoginScreen();
-          },
-        ),
-      ),
-    );
-  }
-}
+import 'package:firebase_auth/firebase_auth.dart';
+import 'map_screen.dart';
+import 'locations_screen.dart';
+import 'world_screen.dart';
+import 'settings_screen.dart';
+import 'login_screen.dart';
+import '../widgets/animated_bottom_nav_bar.dart';
+import '../models/checkin_location.dart';
+import '../services/checkin_database.dart';
+import '../services/user_profile_service.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -74,9 +29,38 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    _loadMapStyle();
+    _waitForAuthThenInit();
+  }
+
+  Future<void> _waitForAuthThenInit() async {
+    // Wait for the first confirmed auth state — handles iOS cold-launch race
+    // where currentUser is briefly null even for a logged-in user.
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      // Not immediately available — wait for the stream to resolve
+      user = await FirebaseAuth.instance.authStateChanges().first;
+    }
+
+    if (!mounted) return;
+
+    if (user == null) {
+      // Genuinely not logged in — go back to login
+      Navigator.of(context).pushReplacement(
+        PageRouteBuilder(
+          pageBuilder: (_, __, ___) => const LoginScreen(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+          transitionDuration: const Duration(milliseconds: 300),
+        ),
+      );
+      return;
+    }
+
+    // Confirmed logged in — safe to use Firestore
     _loadCheckIns();
     _initProfile();
-    _loadMapStyle();
   }
 
   Future<void> _initProfile() async {
@@ -138,8 +122,7 @@ class _HomePageState extends State<HomePage> {
             selectedItemColor: const Color.fromARGB(255, 151, 86, 0),
             unselectedItemColor: const Color.fromARGB(255, 255, 205, 39),
             items: const [
-              BottomNavigationBarItem(
-                  icon: Icon(Icons.map), label: 'Map'),
+              BottomNavigationBarItem(icon: Icon(Icons.map), label: 'Map'),
               BottomNavigationBarItem(
                   icon: Icon(Icons.location_on), label: 'Locations'),
               BottomNavigationBarItem(
@@ -160,7 +143,7 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-// ── Username prompt overlay widget ────────────────────────────────────────────
+// ── Username prompt overlay ───────────────────────────────────────────────────
 
 class _UsernamePromptOverlay extends StatefulWidget {
   final VoidCallback onDismiss;
