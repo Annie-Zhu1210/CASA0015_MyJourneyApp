@@ -1,5 +1,6 @@
 import 'dart:ui' as ui;
 import 'dart:io' as io;
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
@@ -55,7 +56,11 @@ class AvatarMarkerBuilder {
   static Future<ui.Image?> _loadImage(String source) async {
     try {
       Uint8List bytes;
-      if (source.startsWith('/') || source.startsWith('file://')) {
+      if (source.startsWith('data:image')) {
+        // Base64-encoded image saved directly in Firestore
+        final base64Data = source.split(',').last;
+        bytes = base64Decode(base64Data);
+      } else if (source.startsWith('/') || source.startsWith('file://')) {
         bytes = await io.File(source.replaceFirst('file://', '')).readAsBytes();
       } else if (source.startsWith('http')) {
         final response = await http.get(Uri.parse(source));

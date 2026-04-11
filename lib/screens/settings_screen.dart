@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../services/auth_service.dart';
 import '../services/user_profile_service.dart';
 import 'dart:io' as dart_io;
+import 'dart:convert';
 
 class SettingsScreen extends StatefulWidget {
   final VoidCallback? onMapStyleChanged;
@@ -54,12 +55,28 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
     if (picked == null) return;
 
-    if (mounted) {
-      setState(() {
-        _profile = {...?_profile, 'photoUrl': picked.path};
-      });
-      await UserProfileService.updatePhotoUrl(picked.path);
-      widget.onAvatarChanged?.call();
+    try {
+      // Read image bytes and encode as Base64
+      final bytes = await dart_io.File(picked.path).readAsBytes();
+      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      // Save to Firestore and update UI immediately
+      await UserProfileService.updatePhotoUrl(base64String);
+      if (mounted) {
+        setState(() {
+          _profile = {...?_profile, 'photoUrl': base64String};
+        });
+        widget.onAvatarChanged?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to save avatar. Please try again.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 
@@ -176,6 +193,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // ── Avatar image provider ────────────────────────────────────────────────
+  ImageProvider _buildAvatarProvider(String photoUrl) {
+    if (photoUrl.startsWith('data:image')) {
+      // Base64 encoded image stored in Firestore
+      final base64Data = photoUrl.split(',').last;
+      return MemoryImage(base64Decode(base64Data));
+    } else if (photoUrl.startsWith('/')) {
+      // Local file path (temporary, should not normally occur now)
+      return FileImage(dart_io.File(photoUrl));
+    } else {
+      // Remote https:// URL
+      return NetworkImage(photoUrl);
+    }
+  }
+
   // ── Profile card ──────────────────────────────────────────────────────────
 
   Widget _buildProfileCard() {
@@ -214,10 +246,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     color: const Color(0xFFFFCD27).withOpacity(0.3),
                     image: photoUrl.isNotEmpty
                         ? DecorationImage(
-                            image: photoUrl.startsWith('/')
-                                ? FileImage(dart_io.File(photoUrl))
-                                      as ImageProvider
-                                : NetworkImage(photoUrl),
+                            image: _buildAvatarProvider(photoUrl),
                             fit: BoxFit.cover,
                           )
                         : null,

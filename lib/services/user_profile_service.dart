@@ -43,6 +43,9 @@ class UserProfileService {
         'locationCount': 0,
         'citiesCount': 0,
         'friendIds': [],
+        'hiddenFriendIds': [],
+        'citiesCount': 0,
+        'countriesCount': 0,
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
@@ -119,6 +122,21 @@ class UserProfileService {
 
       if (snap.docs.isEmpty) return code; // unique — use it
       // Otherwise loop and try again
+    }
+  }
+
+  // ── Update exploration counts ───────────────────────────────────────────
+  static Future<void> updateExplorationCounts({
+    required int citiesCount,
+    required int countriesCount,
+  }) async {
+    try {
+      await _db.collection('users').doc(_uid).update({
+        'citiesCount': citiesCount,
+        'countriesCount': countriesCount,
+      });
+    } catch (_) {
+      // Silently ignore — counts will sync next time
     }
   }
 

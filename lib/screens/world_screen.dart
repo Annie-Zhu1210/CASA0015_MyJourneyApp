@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import '../services/exploration_service.dart';
+import '../services/user_profile_service.dart';
 import '../services/geocoding_service.dart';
+import '../services/friends_service.dart';
 import 'cities_visited_screen.dart';
 import 'countries_visited_screen.dart';
+import 'friends_screen.dart';
+import 'my_race_screen.dart';
 
 class WorldScreen extends StatefulWidget {
   const WorldScreen({super.key});
@@ -16,8 +20,7 @@ class _WorldScreenState extends State<WorldScreen> {
   bool _isLoading = true;
   List<PlaceInfo> _cities = [];
   List<PlaceInfo> _countries = [];
-  double _worldPercent = 0.0;
-  List<VisitedPoint> _visitedPoints = [];
+  int _friendCount = 1; // at minimum just yourself
 
   @override
   void initState() {
@@ -31,14 +34,20 @@ class _WorldScreenState extends State<WorldScreen> {
       final points = await ExplorationService.loadVisitedPoints();
       final cities = await GeocodingService.getCitiesFromPoints(points);
       final countries = await GeocodingService.getCountriesFromPoints(points);
-      final percent = GeocodingService.computeWorldExploredPercent(points);
+      final friendCount = await FriendsService.getFriendCount();
+
+      // Sync counts to Firestore so friends leaderboard stays up to date
+      await UserProfileService.updateExplorationCounts(
+        citiesCount: cities.length,
+        countriesCount: countries.length,
+      );
 
       if (mounted) {
         setState(() {
-          _visitedPoints = points;
           _cities = cities;
           _countries = countries;
-          _worldPercent = percent;
+          // Always at least 1 (yourself)
+          _friendCount = friendCount < 1 ? 1 : friendCount;
           _isLoading = false;
         });
       }
@@ -47,9 +56,12 @@ class _WorldScreenState extends State<WorldScreen> {
     }
   }
 
-  String _formatWorldPercent() {
-    if (_worldPercent < 0.1) return '< 0.1%';
-    return '${_worldPercent.toStringAsFixed(2)}%';
+  /// Returns the current user's rank among friends by cities visited.
+  /// Returns 1 if there are no other friends yet.
+  int get _myRankByCities {
+    // Phase 2 will populate real per-friend city counts.
+    // For now, with only yourself, rank is always 1.
+    return 1;
   }
 
   @override
@@ -75,7 +87,6 @@ class _WorldScreenState extends State<WorldScreen> {
                       letterSpacing: -0.5,
                     ),
                   ),
-                  // Refresh button to re-geocode latest points
                   CupertinoButton(
                     padding: EdgeInsets.zero,
                     onPressed: _isLoading ? null : _loadStats,
@@ -149,7 +160,8 @@ class _WorldScreenState extends State<WorldScreen> {
                                     onTap: () => Navigator.push(
                                       context,
                                       CupertinoPageRoute(
-                                        builder: (_) => CountriesVisitedScreen(
+                                        builder: (_) =>
+                                            CountriesVisitedScreen(
                                           countries: _countries,
                                         ),
                                       ),
@@ -164,30 +176,33 @@ class _WorldScreenState extends State<WorldScreen> {
                           Expanded(
                             child: Row(
                               children: [
-                                // World Explored %
+                                // ── Add Friends card ────────────────────────
                                 Expanded(
-                                  child: _StatCard(
-                                    icon: CupertinoIcons.map_fill,
-                                    iconColor: const Color(0xFF2196F3),
-                                    title: 'World Explored',
-                                    value: _formatWorldPercent(),
-                                    description:
-                                        'Of Earth\'s total surface area',
-                                    onTap: null, // No detail screen for now
+                                  child: _AddFriendsCard(
+                                    friendCount: _friendCount,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        CupertinoPageRoute(
+                                          builder: (_) => const FriendsScreen(),
+                                        ),
+                                      ).then((_) => _loadStats());
+                                    },
                                   ),
                                 ),
                                 const SizedBox(width: 12),
-                                // My Race
+                                // ── My Race card ─────────────────────────────
                                 Expanded(
-                                  child: _StatCard(
-                                    icon: CupertinoIcons.person_2_fill,
-                                    iconColor: const Color(0xFFFFCD27),
-                                    title: 'My Race',
-                                    value: '🏆',
-                                    description:
-                                        'Friend challenges coming soon',
-                                    onTap: null,
-                                    isComingSoon: true,
+                                  child: _MyRaceCard(
+                                    rank: _myRankByCities,
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        CupertinoPageRoute(
+                                          builder: (_) => const MyRaceScreen(),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
@@ -205,25 +220,15 @@ class _WorldScreenState extends State<WorldScreen> {
   }
 }
 
-// ─── Reusable stat card widget ────────────────────────────────────────────────
+// ─── Add Friends card ─────────────────────────────────────────────────────────
 
-class _StatCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String value;
-  final String description;
-  final VoidCallback? onTap;
-  final bool isComingSoon;
+class _AddFriendsCard extends StatelessWidget {
+  final int friendCount;
+  final VoidCallback onTap;
 
-  const _StatCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.value,
-    required this.description,
+  const _AddFriendsCard({
+    required this.friendCount,
     required this.onTap,
-    this.isComingSoon = false,
   });
 
   @override
@@ -245,13 +250,240 @@ class _StatCard extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Main content
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Icon circle
+                  // Friends icon (replaces the old map icon)
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2196F3).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.person_2_fill,
+                      color: Color(0xFF2196F3),
+                      size: 22,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Friend count (big number)
+                  Text(
+                    '$friendCount',
+                    style: const TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2C1A00),
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Title
+                  const Text(
+                    'Friends',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF97560A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Sub-description
+                  Text(
+                    'Add friends here.',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Tap arrow
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Icon(
+                CupertinoIcons.chevron_right,
+                size: 14,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── My Race card ─────────────────────────────────────────────────────────────
+
+class _MyRaceCard extends StatelessWidget {
+  final int rank;
+  final VoidCallback onTap;
+
+  const _MyRaceCard({
+    required this.rank,
+    required this.onTap,
+  });
+
+  /// Ordinal suffix: 1st, 2nd, 3rd, 4th …
+  String _ordinal(int n) {
+    if (n >= 11 && n <= 13) return '${n}th';
+    switch (n % 10) {
+      case 1:
+        return '${n}st';
+      case 2:
+        return '${n}nd';
+      case 3:
+        return '${n}rd';
+      default:
+        return '${n}th';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.brown.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Trophy / crown icon (replaces old person_2_fill)
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFCD27).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      CupertinoIcons.rosette, // crown/trophy style
+                      color: Color(0xFFFFCD27),
+                      size: 22,
+                    ),
+                  ),
+                  const Spacer(),
+                  // Rank number (replaces trophy emoji)
+                  Text(
+                    _ordinal(rank),
+                    style: const TextStyle(
+                      fontSize: 30,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF2C1A00),
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Title
+                  const Text(
+                    'My Race',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF97560A),
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // Description: cities ranking context
+                  Text(
+                    'Cities visited ranking',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade500,
+                      height: 1.3,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Tap arrow
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Icon(
+                CupertinoIcons.chevron_right,
+                size: 14,
+                color: Colors.grey.shade400,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Generic reusable stat card ───────────────────────────────────────────────
+
+class _StatCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String value;
+  final String description;
+  final VoidCallback? onTap;
+
+  const _StatCard({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.value,
+    required this.description,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.brown.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Container(
                     width: 42,
                     height: 42,
@@ -262,7 +494,6 @@ class _StatCard extends StatelessWidget {
                     child: Icon(icon, color: iconColor, size: 22),
                   ),
                   const Spacer(),
-                  // Big value
                   Text(
                     value,
                     style: const TextStyle(
@@ -273,7 +504,6 @@ class _StatCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Title
                   Text(
                     title,
                     style: const TextStyle(
@@ -284,7 +514,6 @@ class _StatCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  // Description
                   Text(
                     description,
                     style: TextStyle(
@@ -298,8 +527,6 @@ class _StatCard extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Tap arrow (only for tappable cards)
             if (onTap != null)
               Positioned(
                 top: 12,
@@ -308,29 +535,6 @@ class _StatCard extends StatelessWidget {
                   CupertinoIcons.chevron_right,
                   size: 14,
                   color: Colors.grey.shade400,
-                ),
-              ),
-
-            
-            if (isComingSoon)
-              Positioned(
-                top: 10,
-                right: 10,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFCD27).withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'Soon',
-                    style: TextStyle(
-                      fontSize: 9,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF97560A),
-                    ),
-                  ),
                 ),
               ),
           ],
