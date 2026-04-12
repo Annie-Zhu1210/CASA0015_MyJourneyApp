@@ -1,4 +1,7 @@
-// lib/models/checkin_location.dart
+class ClearableValue<T> {
+  final T value;
+  const ClearableValue(this.value);
+}
 
 class CheckInLocation {
   final String id;
@@ -62,12 +65,24 @@ class CheckInLocation {
     );
   }
 
-  /// Create a copy with updated fields
+  /// Create a copy with updated fields.
+  ///
+  /// For nullable fields ([labelWord], [name], [details]), wrap the value in
+  /// [ClearableValue] to explicitly set or clear them:
+  ///
+  ///   // Clear labelWord to null:
+  ///   checkin.copyWith(labelWord: ClearableValue(null))
+  ///
+  ///   // Set labelWord to a new value:
+  ///   checkin.copyWith(labelWord: ClearableValue('Food'))
+  ///
+  ///   // Leave labelWord unchanged (omit the parameter):
+  ///   checkin.copyWith(emoji: '🍜')
   CheckInLocation copyWith({
     String? emoji,
-    String? labelWord,
-    String? name,
-    String? details,
+    ClearableValue<String?>? labelWord,
+    ClearableValue<String?>? name,
+    ClearableValue<String?>? details,
     List<String>? mediaPaths,
     DateTime? updatedAt,
   }) {
@@ -76,9 +91,9 @@ class CheckInLocation {
       latitude: latitude,
       longitude: longitude,
       emoji: emoji ?? this.emoji,
-      labelWord: labelWord ?? this.labelWord,
-      name: name ?? this.name,
-      details: details ?? this.details,
+      labelWord: labelWord != null ? labelWord.value : this.labelWord,
+      name: name != null ? name.value : this.name,
+      details: details != null ? details.value : this.details,
       mediaPaths: mediaPaths ?? this.mediaPaths,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),

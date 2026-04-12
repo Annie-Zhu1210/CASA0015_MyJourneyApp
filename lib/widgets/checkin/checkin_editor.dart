@@ -1,5 +1,3 @@
-// lib/widgets/checkin/checkin_editor.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +9,7 @@ import 'package:uuid/uuid.dart';
 import '../../models/checkin_location.dart';
 import '../../services/checkin_database.dart';
 import 'label_picker.dart';
+// ClearableValue is defined in checkin_location.dart and imported above
 
 /// Level 2 floating panel — full check-in editor.
 /// Used for both creating a new check-in and editing an existing one.
@@ -280,9 +279,9 @@ class _CheckInEditorState extends State<CheckInEditor> {
           )
         : widget.existing!.copyWith(
             emoji: _emoji,
-            labelWord: _labelWord,
-            name: _name,
-            details: _details,
+            labelWord: ClearableValue(_labelWord),
+            name: ClearableValue(_name),
+            details: ClearableValue(_details),
             mediaPaths: _mediaPaths,
             updatedAt: now,
           );

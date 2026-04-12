@@ -4,14 +4,17 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:uuid/uuid.dart';
 import '../services/exploration_service.dart';
 import '../services/checkin_database.dart';
 import '../services/checkin_marker_builder.dart';
 import '../services/avatar_marker_builder.dart';
 import '../services/user_profile_service.dart';
+import '../services/shake_checkin_service.dart';
 import '../models/checkin_location.dart';
 import '../widgets/checkin/checkin_level1_dialog.dart';
 import '../widgets/checkin/checkin_info_panel.dart';
+import '../constants/checkin_labels.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 const double kRevealRadiusMetres = 50.0;
@@ -52,7 +55,7 @@ class MapScreenState extends State<MapScreen> {
   // ── Check-in state ────────────────────────────────────────────────────────
   List<CheckInLocation> _checkIns = [];
 
-  /// Cache keyed "${checkinId}_${scaleBucket}" — rebuilt only when bucket changes.
+  /// Cache keyed "${checkinId}_${emoji}_${scaleBucket}" — rebuilt only when emoji or bucket changes.
   final Map<String, BitmapDescriptor> _checkinCache = {};
 
   // ── Avatar marker cache ───────────────────────────────────────────────────
@@ -62,12 +65,17 @@ class MapScreenState extends State<MapScreen> {
   String? _cachedDisplayName;
   bool _avatarBuilding = false;
 
-
   // ── Dialog / panel state ──────────────────────────────────────────────────
   LatLng? _pendingLongPressPosition;
   bool _showLevel1Dialog = false;
   CheckInLocation? _selectedCheckIn;
   bool _showInfoPanel = false;
+
+  // ── Shake check-in ────────────────────────────────────────────────────────
+  late ShakeCheckInService _shakeService;
+
+  // Toast overlay state
+  OverlayEntry? _toastEntry;
 
   static const CameraPosition _initialPosition = CameraPosition(
     target: LatLng(0, 0),
@@ -105,6 +113,10 @@ class MapScreenState extends State<MapScreen> {
     _loadCheckIns();
     _initializeLocation();
     _ensureAvatarBucket(_avatarScaleBucket(1.0));
+
+    // Initialise the shake service — starts listening immediately.
+    _shakeService = ShakeCheckInService(onShake: _onShakeDetected);
+    _shakeService.start();
   }
 
   @override
@@ -115,9 +127,78 @@ class MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    _shakeService.stop();
     _locationSubscription?.cancel();
     _mapController?.dispose();
+    _toastEntry?.remove();
     super.dispose();
+  }
+
+  // ── Shake check-in ────────────────────────────────────────────────────────
+
+  /// Called by [ShakeCheckInService] whenever a valid shake is detected.
+  Future<void> _onShakeDetected() async {
+    // We need a GPS fix to save a check-in.
+    if (_currentPosition == null) return;
+
+    // Don't trigger if any dialog/panel is already open — it would be
+    // confusing to save silently while the user is interacting with the UI.
+    if (_showLevel1Dialog || _showInfoPanel) return;
+
+    // Determine the auto-incremented name: "Untitled N"
+    // Count how many existing check-ins already have a name matching
+    // "Untitled N" so the new one always gets the next available number.
+    final untitledCount = _checkIns
+        .where((c) =>
+            c.name != null &&
+            RegExp(r'^Untitled \d+$').hasMatch(c.name!))
+        .length;
+    final newName = 'Untitled ${untitledCount + 1}';
+
+    // Use the first preset label as the default (⭐ Favourite).
+    final defaultLabel = kPresetLabels.first;
+
+    final now = DateTime.now();
+    final newCheckIn = CheckInLocation(
+      id: const Uuid().v4(),
+      latitude: _currentPosition!.latitude,
+      longitude: _currentPosition!.longitude,
+      emoji: defaultLabel.emoji,
+      labelWord: defaultLabel.word,
+      name: newName,
+      details: null,
+      mediaPaths: [],
+      createdAt: now,
+      updatedAt: now,
+    );
+
+    await CheckInDatabase.insert(newCheckIn);
+    await _loadCheckIns();
+    widget.onCheckInsChanged?.call();
+
+    // Show a brief toast so the user knows the shake worked.
+    _showShakeToast(newName, defaultLabel.emoji);
+  }
+
+  /// Displays a small floating toast for 2.5 seconds then removes it.
+  void _showShakeToast(String name, String emoji) {
+    // Remove any existing toast first (in case of rapid shake).
+    _toastEntry?.remove();
+    _toastEntry = null;
+
+    final overlay = Overlay.of(context);
+
+    _toastEntry = OverlayEntry(
+      builder: (_) => _ShakeToast(emoji: emoji, name: name),
+    );
+
+    overlay.insert(_toastEntry!);
+
+    // Auto-dismiss after 2.5 seconds.
+    Future.delayed(const Duration(milliseconds: 2500), () {
+      _toastEntry?.remove();
+      _toastEntry = null;
+    });
   }
 
   // ── Visited points ────────────────────────────────────────────────────────
@@ -208,7 +289,7 @@ class MapScreenState extends State<MapScreen> {
     final scale  = _checkinScale(zoom);
     final bucket = _checkinScaleBucket(scale);
     for (final c in _checkIns) {
-      final key = '${c.id}_$bucket';
+      final key = '${c.id}_${c.emoji}_$bucket';
       if (_checkinCache.containsKey(key)) continue;
       final icon = await CheckInMarkerBuilder.build(c.emoji, scale: scale);
       if (mounted) setState(() => _checkinCache[key] = icon);
@@ -240,7 +321,7 @@ class MapScreenState extends State<MapScreen> {
 
     // ── Check-in markers ──────────────────────────────────────────────────
     for (final c in _checkIns) {
-      final icon = _checkinCache['${c.id}_$checkinBucket'];
+      final icon = _checkinCache['${c.id}_${c.emoji}_$checkinBucket'];
       if (icon == null) continue;
       markers.add(Marker(
         markerId: MarkerId('checkin_${c.id}'),
@@ -358,7 +439,7 @@ class MapScreenState extends State<MapScreen> {
     _locationSubscription = Geolocator.getPositionStream(
       locationSettings: const LocationSettings(
         accuracy:       LocationAccuracy.high,
-        distanceFilter: 10, // smaller filter so heading updates feel snappy
+        distanceFilter: 10,
       ),
     ).listen((position) {
       if (!mounted) return;
@@ -479,7 +560,6 @@ class MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
-      
 
       // ── Loading ────────────────────────────────────────────────────────
       if (_isLoading)
@@ -583,6 +663,125 @@ class MapScreenState extends State<MapScreen> {
           ),
         ),
     ]);
+  }
+}
+
+
+// ── Shake toast widget ────────────────────────────────────────────────────────
+
+/// Small floating notification shown after a shake check-in is saved.
+/// Slides in from the top, stays for a moment, then the [OverlayEntry]
+/// is removed by the caller after 2.5 seconds.
+class _ShakeToast extends StatefulWidget {
+  final String emoji;
+  final String name;
+
+  const _ShakeToast({required this.emoji, required this.name});
+
+  @override
+  State<_ShakeToast> createState() => _ShakeToastState();
+}
+
+class _ShakeToastState extends State<_ShakeToast>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<Offset> _slide;
+  late final Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    );
+
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -1),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
+
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
+
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 12,
+      left: 24,
+      right: 24,
+      child: SlideTransition(
+        position: _slide,
+        child: FadeTransition(
+          opacity: _fade,
+          child: Material(
+            color: Colors.transparent,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFFBEE),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.12),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+                border: Border.all(
+                  color: const Color(0xFFFFD24B),
+                  width: 1.5,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(widget.emoji,
+                      style: const TextStyle(fontSize: 22)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Check-in saved!',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF3D2000),
+                          ),
+                        ),
+                        Text(
+                          widget.name,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.brown[400],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(
+                    Icons.check_circle_outline_rounded,
+                    color: Color(0xFF975600),
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

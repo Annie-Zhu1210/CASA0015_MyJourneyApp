@@ -308,6 +308,9 @@ class _CityViewState extends State<_CityView> {
   @override
   void initState() {
     super.initState();
+    // Clear the cache on every fresh mount so stale locale-dependent entries
+    // (e.g. "伦敦" from a previous session) don't prevent correct merging.
+    _geocodeCache.clear();
     _buildCityMap();
   }
 
@@ -317,14 +320,73 @@ class _CityViewState extends State<_CityView> {
     if (oldWidget.checkIns != widget.checkIns) _buildCityMap();
   }
 
-  Future<void> _buildCityMap() async {
-    setState(() => _loading = true);
+  // Cache keyed by "lat4,lng4" (4 decimal places ≈ 11m precision).
+  // Stores the resolved (cityKey, displayName).
+  // cityKey uses lowercase normalised city name + isoCountryCode so that
+  // locale-translated strings ("伦敦" vs "london") never split the same city.
+  static final Map<String, (String, String)> _geocodeCache = {};
 
+  /// Normalises a city name to a stable lowercase ASCII-ish key.
+  /// Removes diacritics and converts to lowercase so locale differences
+  /// (e.g. "London" vs "伦敦") produce a consistent key when combined
+  /// with isoCountryCode.
+  static String _normaliseCityName(String city) {
+    // Use the string's codeUnits to strip non-ASCII characters, falling back
+    // to keeping the full string if it is entirely non-ASCII (e.g. Arabic).
+    final ascii = city.codeUnits
+        .where((c) => c < 128)
+        .map((c) => String.fromCharCode(c))
+        .join()
+        .trim()
+        .toLowerCase();
+    return ascii.isNotEmpty ? ascii : city.toLowerCase();
+  }
+
+  Future<void> _buildCityMap() async {
+    // ── Phase 1: synchronous grouping with cached data ─────────────────────
+    // Update the display immediately using whatever is already cached,
+    // so label/emoji edits are reflected without waiting for geocoding.
     final Map<String, List<CheckInLocation>> cityMap = {};
     final Map<String, String> displayNames = {};
 
-    // Geocode each check-in to find city
     for (final c in widget.checkIns) {
+      final coordKey =
+          '${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}';
+      final cityKey = _geocodeCache.containsKey(coordKey)
+          ? _geocodeCache[coordKey]!.$1
+          : coordKey; // temporary key until geocoded
+      final displayName = _geocodeCache.containsKey(coordKey)
+          ? _geocodeCache[coordKey]!.$2
+          : '…';
+      cityMap.putIfAbsent(cityKey, () => []).add(c);
+      displayNames[cityKey] = displayName;
+    }
+
+    for (final key in cityMap.keys) {
+      cityMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+
+    final sortedKeys = cityMap.keys.toList()
+      ..sort((a, b) => cityMap[b]!.first.createdAt
+          .compareTo(cityMap[a]!.first.createdAt));
+
+    if (mounted) {
+      setState(() {
+        _cityMap = cityMap;
+        _cityKeys = sortedKeys;
+        _cityDisplayNames.addAll(displayNames);
+        _loading = false;
+      });
+    }
+
+    // ── Phase 2: geocode any uncached coordinates ──────────────────────────
+    bool anyNewResults = false;
+    for (final c in widget.checkIns) {
+      if (!mounted) return;
+      final coordKey =
+          '${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}';
+      if (_geocodeCache.containsKey(coordKey)) continue;
+
       String cityKey;
       String displayName;
       try {
@@ -335,17 +397,25 @@ class _CityViewState extends State<_CityView> {
         );
         if (placemarks.isNotEmpty) {
           final p = placemarks.first;
-          final city =
+          final rawCity =
               (p.locality?.isNotEmpty == true ? p.locality! : null) ??
+                  (p.subAdministrativeArea?.isNotEmpty == true
+                      ? p.subAdministrativeArea!
+                      : null) ??
                   (p.administrativeArea?.isNotEmpty == true
                       ? p.administrativeArea!
                       : null) ??
                   'Unknown';
-          final country =
-              p.country?.isNotEmpty == true ? p.country! : '';
-          cityKey = '$city|$country';
-          displayName =
-              country.isNotEmpty ? '$city, $country' : city;
+          final isoCode = p.isoCountryCode?.toUpperCase() ?? '';
+          final countryDisplay = p.country ?? '';
+          // Key: normalised lowercase city name + ISO country code.
+          // This is locale-independent: "London|GB" == "伦敦|GB" after
+          // normalisation because the non-ASCII chars are stripped and
+          // the isoCode anchors them to the same country.
+          cityKey = '${_normaliseCityName(rawCity)}|$isoCode';
+          displayName = countryDisplay.isNotEmpty
+              ? '$rawCity, $countryDisplay'
+              : rawCity;
         } else {
           cityKey = 'unknown';
           displayName = 'Unknown';
@@ -355,35 +425,50 @@ class _CityViewState extends State<_CityView> {
         displayName = 'Unknown';
       }
 
-      cityMap.putIfAbsent(cityKey, () => []).add(c);
-      displayNames[cityKey] = displayName;
+      _geocodeCache[coordKey] = (cityKey, displayName);
+      anyNewResults = true;
     }
 
-    // Sort locations within each city newest→oldest
-    for (final key in cityMap.keys) {
-      cityMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    // ── Phase 3: if any new geocoding happened, rebuild the map ────────────
+    // This replaces temp coordKey buckets with real city name keys and
+    // merges any that ended up in the same city.
+    if (!anyNewResults || !mounted) return;
+
+    final Map<String, List<CheckInLocation>> finalMap = {};
+    final Map<String, String> finalNames = {};
+
+    for (final c in widget.checkIns) {
+      final coordKey =
+          '${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}';
+      final entry = _geocodeCache[coordKey]!;
+      finalMap.putIfAbsent(entry.$1, () => []).add(c);
+      finalNames[entry.$1] = entry.$2;
     }
 
-    // Order cities by the most recent check-in in each city
-    final cityKeys = cityMap.keys.toList()
-      ..sort((a, b) {
-        final latestA = cityMap[a]!.first.createdAt;
-        final latestB = cityMap[b]!.first.createdAt;
-        return latestB.compareTo(latestA);
-      });
+    for (final key in finalMap.keys) {
+      finalMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+
+    final finalKeys = finalMap.keys.toList()
+      ..sort((a, b) => finalMap[b]!.first.createdAt
+          .compareTo(finalMap[a]!.first.createdAt));
 
     if (mounted) {
       setState(() {
-        _cityMap = cityMap;
-        _cityKeys = cityKeys;
-        _cityDisplayNames.addAll(displayNames);
+        _cityMap = finalMap;
+        _cityKeys = finalKeys;
+        _cityDisplayNames
+          ..clear()
+          ..addAll(finalNames);
         _loading = false;
       });
     }
   }
 
   void _openCollection(String cityKey) async {
-    final locations = List<CheckInLocation>.from(_cityMap[cityKey]!);
+    // Re-derive from the latest _cityMap entry so edits (e.g. label changes)
+    // are reflected immediately when opening the collection.
+    final locations = List<CheckInLocation>.from(_cityMap[cityKey] ?? []);
     final result = await Navigator.push<List<CheckInLocation>>(
       context,
       _slideRightRoute<List<CheckInLocation>>(
@@ -523,15 +608,27 @@ class _LabelViewState extends State<_LabelView> {
   }
 
   void _openCollection(String labelKey) async {
-    final locations = List<CheckInLocation>.from(_labelMap[labelKey]!);
+    // Always re-derive from the current widget.checkIns so that any label
+    // edits made since the map was last built are immediately reflected,
+    // rather than showing the stale pre-edit objects held in _labelMap.
+    final presetWords = kPresetLabels.map((l) => l.word).toSet();
+    final freshLocations = widget.checkIns.where((c) {
+      final word = c.labelWord;
+      if (labelKey == _othersKey) {
+        return word == null || !presetWords.contains(word);
+      }
+      return word == labelKey;
+    }).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
     final result = await Navigator.push<List<CheckInLocation>>(
       context,
       _slideRightRoute<List<CheckInLocation>>(
         CollectionDetailScreen(
           title: _labelTitles[labelKey] ?? labelKey,
           subtitle:
-              '${locations.length} location${locations.length == 1 ? '' : 's'}',
-          locations: locations,
+              '${freshLocations.length} location${freshLocations.length == 1 ? '' : 's'}',
+          locations: freshLocations,
           onChanged: widget.onChanged,
         ),
       ),
