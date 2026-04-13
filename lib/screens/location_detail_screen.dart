@@ -169,18 +169,8 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
@@ -205,6 +195,15 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                     const SizedBox(height: 20),
                     _buildCoordRow(),
                     const SizedBox(height: 20),
+
+                    // ── Weather card (only shown if weather was recorded) ──
+                    if (_checkIn.weatherDisplay != null) ...[
+                      _sectionLabel('Weather'),
+                      const SizedBox(height: 8),
+                      _buildWeatherCard(),
+                      const SizedBox(height: 20),
+                    ],
+
                     if (_checkIn.details != null &&
                         _checkIn.details!.isNotEmpty) ...[
                       _sectionLabel('Notes'),
@@ -347,6 +346,85 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildWeatherCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFD24B).withOpacity(0.18),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFFFFD24B).withOpacity(0.55),
+          width: 1,
+        ),
+      ),
+      child: Row(
+        children: [
+          // Large emoji
+          Text(
+            _weatherEmoji(_checkIn.weatherCondition!),
+            style: const TextStyle(fontSize: 32),
+          ),
+          const SizedBox(width: 14),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${_checkIn.weatherTemp!.toStringAsFixed(0)}°C',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3D2000),
+                ),
+              ),
+              Text(
+                _checkIn.weatherCondition!,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.brown[500],
+                ),
+              ),
+            ],
+          ),
+          const Spacer(),
+          // Small label indicating this was recorded at check-in time
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD24B).withOpacity(0.35),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              'At check-in',
+              style: TextStyle(
+                fontSize: 10,
+                color: Colors.brown[500],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Maps condition text to an emoji — mirrors the logic in WeatherService.
+  String _weatherEmoji(String condition) {
+    final lc = condition.toLowerCase();
+    if (lc.contains('thunderstorm')) return '⛈️';
+    if (lc.contains('drizzle')) return '🌦️';
+    if (lc.contains('rain')) return '🌧️';
+    if (lc.contains('snow')) return '❄️';
+    if (lc.contains('clear')) return '☀️';
+    if (lc.contains('few clouds')) return '🌤️';
+    if (lc.contains('scattered clouds')) return '⛅';
+    if (lc.contains('cloud')) return '☁️';
+    if (lc.contains('fog') || lc.contains('mist') || lc.contains('haze')) {
+      return '🌫️';
+    }
+    return '🌡️';
   }
 
   Widget _buildNotesCard() {

@@ -11,9 +11,13 @@ class CheckInLocation {
   final String? labelWord;
   final String? name;
   final String? details;
-  final List<String> mediaPaths; // local file paths
+  final List<String> mediaPaths;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  // ── Weather fields (nullable — not all check-ins will have weather) ────────
+  final String? weatherCondition; // e.g. "Partly Cloudy"
+  final double? weatherTemp;      // Celsius
 
   CheckInLocation({
     required this.id,
@@ -26,13 +30,32 @@ class CheckInLocation {
     List<String>? mediaPaths,
     required this.createdAt,
     required this.updatedAt,
+    this.weatherCondition,
+    this.weatherTemp,
   }) : mediaPaths = mediaPaths ?? [];
 
   /// Full label shown on map bubble: emoji + optional word
   String get displayLabel =>
       labelWord != null && labelWord!.isNotEmpty ? '$emoji $labelWord' : emoji;
 
-  /// Convert to map for SQLite storage
+  /// e.g. "☀️ Sunny, 18°C" — null if no weather was recorded
+  String? get weatherDisplay {
+    if (weatherCondition == null || weatherTemp == null) return null;
+    // Reuse WeatherData emoji logic inline to avoid a circular import
+    String we = '🌡️';
+    final lc = weatherCondition!.toLowerCase();
+    if (lc.contains('thunderstorm')) we = '⛈️';
+    else if (lc.contains('drizzle')) we = '🌦️';
+    else if (lc.contains('rain')) we = '🌧️';
+    else if (lc.contains('snow')) we = '❄️';
+    else if (lc.contains('clear')) we = '☀️';
+    else if (lc.contains('few clouds')) we = '🌤️';
+    else if (lc.contains('scattered clouds')) we = '⛅';
+    else if (lc.contains('cloud')) we = '☁️';
+    else if (lc.contains('fog') || lc.contains('mist') || lc.contains('haze')) we = '🌫️';
+    return '$we $weatherCondition, ${weatherTemp!.toStringAsFixed(0)}°C';
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
@@ -42,13 +65,14 @@ class CheckInLocation {
       'label_word': labelWord,
       'name': name,
       'details': details,
-      'media_paths': mediaPaths.join('|'), // pipe-separated paths
+      'media_paths': mediaPaths.join('|'),
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt.toIso8601String(),
+      'weather_condition': weatherCondition,
+      'weather_temp': weatherTemp,
     };
   }
 
-  /// Reconstruct from SQLite row
   factory CheckInLocation.fromMap(Map<String, dynamic> map) {
     final rawPaths = map['media_paths'] as String? ?? '';
     return CheckInLocation(
@@ -62,22 +86,13 @@ class CheckInLocation {
       mediaPaths: rawPaths.isEmpty ? [] : rawPaths.split('|'),
       createdAt: DateTime.parse(map['created_at'] as String),
       updatedAt: DateTime.parse(map['updated_at'] as String),
+      weatherCondition: map['weather_condition'] as String?,
+      weatherTemp: map['weather_temp'] != null
+          ? (map['weather_temp'] as num).toDouble()
+          : null,
     );
   }
 
-  /// Create a copy with updated fields.
-  ///
-  /// For nullable fields ([labelWord], [name], [details]), wrap the value in
-  /// [ClearableValue] to explicitly set or clear them:
-  ///
-  ///   // Clear labelWord to null:
-  ///   checkin.copyWith(labelWord: ClearableValue(null))
-  ///
-  ///   // Set labelWord to a new value:
-  ///   checkin.copyWith(labelWord: ClearableValue('Food'))
-  ///
-  ///   // Leave labelWord unchanged (omit the parameter):
-  ///   checkin.copyWith(emoji: '🍜')
   CheckInLocation copyWith({
     String? emoji,
     ClearableValue<String?>? labelWord,
@@ -85,6 +100,8 @@ class CheckInLocation {
     ClearableValue<String?>? details,
     List<String>? mediaPaths,
     DateTime? updatedAt,
+    ClearableValue<String?>? weatherCondition,
+    ClearableValue<double?>? weatherTemp,
   }) {
     return CheckInLocation(
       id: id,
@@ -97,6 +114,11 @@ class CheckInLocation {
       mediaPaths: mediaPaths ?? this.mediaPaths,
       createdAt: createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      weatherCondition: weatherCondition != null
+          ? weatherCondition.value
+          : this.weatherCondition,
+      weatherTemp:
+          weatherTemp != null ? weatherTemp.value : this.weatherTemp,
     );
   }
 }

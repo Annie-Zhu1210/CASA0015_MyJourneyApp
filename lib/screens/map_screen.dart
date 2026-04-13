@@ -15,6 +15,7 @@ import '../models/checkin_location.dart';
 import '../widgets/checkin/checkin_level1_dialog.dart';
 import '../widgets/checkin/checkin_info_panel.dart';
 import '../constants/checkin_labels.dart';
+import '../services/weather_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 const double kRevealRadiusMetres = 50.0;
@@ -70,6 +71,11 @@ class MapScreenState extends State<MapScreen> {
   bool _showLevel1Dialog = false;
   CheckInLocation? _selectedCheckIn;
   bool _showInfoPanel = false;
+
+  // ── Weather ───────────────────────────────────────────────────────────────
+  WeatherData? _currentWeather;
+  DateTime? _lastWeatherFetch;
+  static const Duration _weatherRefreshInterval = Duration(minutes: 10);
 
   // ── Shake check-in ────────────────────────────────────────────────────────
   late ShakeCheckInService _shakeService;
@@ -149,9 +155,9 @@ class MapScreenState extends State<MapScreen> {
     // Count how many existing check-ins already have a name matching
     // "Untitled N" so the new one always gets the next available number.
     final untitledCount = _checkIns
-        .where((c) =>
-            c.name != null &&
-            RegExp(r'^Untitled \d+$').hasMatch(c.name!))
+        .where(
+          (c) => c.name != null && RegExp(r'^Untitled \d+$').hasMatch(c.name!),
+        )
         .length;
     final newName = 'Untitled ${untitledCount + 1}';
 
@@ -172,7 +178,29 @@ class MapScreenState extends State<MapScreen> {
       updatedAt: now,
     );
 
-    await CheckInDatabase.insert(newCheckIn);
+    // Fetch weather at the moment of shake — this is always accurate
+    // since the user is physically here right now.
+    final weather = await WeatherService.fetchCurrent(
+      latitude: _currentPosition!.latitude,
+      longitude: _currentPosition!.longitude,
+    );
+
+    final newCheckInWithWeather = CheckInLocation(
+      id: newCheckIn.id,
+      latitude: newCheckIn.latitude,
+      longitude: newCheckIn.longitude,
+      emoji: newCheckIn.emoji,
+      labelWord: newCheckIn.labelWord,
+      name: newCheckIn.name,
+      details: newCheckIn.details,
+      mediaPaths: newCheckIn.mediaPaths,
+      createdAt: newCheckIn.createdAt,
+      updatedAt: newCheckIn.updatedAt,
+      weatherCondition: weather?.condition,
+      weatherTemp: weather?.tempCelsius,
+    );
+
+    await CheckInDatabase.insert(newCheckInWithWeather);
     await _loadCheckIns();
     widget.onCheckInsChanged?.call();
 
@@ -199,6 +227,26 @@ class MapScreenState extends State<MapScreen> {
       _toastEntry?.remove();
       _toastEntry = null;
     });
+  }
+
+  // ── Weather ───────────────────────────────────────────────────────────────
+
+  /// Fetches weather for the current position, respecting the refresh interval.
+  /// Safe to call frequently — it throttles itself.
+  Future<void> _refreshWeather() async {
+    if (_currentPosition == null) return;
+    final now = DateTime.now();
+    if (_lastWeatherFetch != null &&
+        now.difference(_lastWeatherFetch!) < _weatherRefreshInterval)
+      return;
+    _lastWeatherFetch = now;
+    final weather = await WeatherService.fetchCurrent(
+      latitude: _currentPosition!.latitude,
+      longitude: _currentPosition!.longitude,
+    );
+    if (mounted && weather != null) {
+      setState(() => _currentWeather = weather);
+    }
   }
 
   // ── Visited points ────────────────────────────────────────────────────────
@@ -256,14 +304,12 @@ class MapScreenState extends State<MapScreen> {
   double _avatarScale(double zoom) {
     if (zoom >= kFullSizeZoom) return 1.0;
     if (zoom <= kMinSizeZoom) return 0.5;
-    return 0.5 +
-        0.5 * ((zoom - kMinSizeZoom) / (kFullSizeZoom - kMinSizeZoom));
+    return 0.5 + 0.5 * ((zoom - kMinSizeZoom) / (kFullSizeZoom - kMinSizeZoom));
   }
 
   int _avatarScaleBucket(double scale) => (scale * 4).round();
 
-  double _avatarScaleFromBucket(int bucket) =>
-      (bucket / 4.0).clamp(0.5, 1.0);
+  double _avatarScaleFromBucket(int bucket) => (bucket / 4.0).clamp(0.5, 1.0);
 
   // ── Check-in scale helpers ────────────────────────────────────────────────
 
@@ -286,7 +332,7 @@ class MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _buildCheckinMarkersForZoom(double zoom) async {
-    final scale  = _checkinScale(zoom);
+    final scale = _checkinScale(zoom);
     final bucket = _checkinScaleBucket(scale);
     for (final c in _checkIns) {
       final key = '${c.id}_${c.emoji}_$bucket';
@@ -301,41 +347,46 @@ class MapScreenState extends State<MapScreen> {
   Set<Marker> _buildMarkers() {
     final markers = <Marker>{};
 
-    final avatarBucket  = _avatarScaleBucket(_avatarScale(_currentZoom));
-    final checkinScale  = _checkinScale(_currentZoom);
+    final avatarBucket = _avatarScaleBucket(_avatarScale(_currentZoom));
+    final checkinScale = _checkinScale(_currentZoom);
     final checkinBucket = _checkinScaleBucket(checkinScale);
 
     // ── User avatar marker ────────────────────────────────────────────────
     final avatarIcon = _avatarCache[avatarBucket];
     if (_currentPosition != null && avatarIcon != null) {
-      markers.add(Marker(
-        markerId: const MarkerId('current_user'),
-        position: LatLng(
-            _currentPosition!.latitude, _currentPosition!.longitude),
-        icon:   avatarIcon,
-        anchor: const Offset(0.5, 1.0),
-        zIndex: 10,
-        infoWindow: InfoWindow.noText,
-      ));
+      markers.add(
+        Marker(
+          markerId: const MarkerId('current_user'),
+          position: LatLng(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          ),
+          icon: avatarIcon,
+          anchor: const Offset(0.5, 1.0),
+          zIndex: 10,
+          infoWindow: InfoWindow.noText,
+        ),
+      );
     }
 
     // ── Check-in markers ──────────────────────────────────────────────────
     for (final c in _checkIns) {
       final icon = _checkinCache['${c.id}_${c.emoji}_$checkinBucket'];
       if (icon == null) continue;
-      markers.add(Marker(
-        markerId: MarkerId('checkin_${c.id}'),
-        position: LatLng(c.latitude, c.longitude),
-        icon:     icon,
-        anchor:   const Offset(0.5, 1.0),
-        onTap:    () => _onCheckInMarkerTapped(c),
-        infoWindow: InfoWindow.noText,
-      ));
+      markers.add(
+        Marker(
+          markerId: MarkerId('checkin_${c.id}'),
+          position: LatLng(c.latitude, c.longitude),
+          icon: icon,
+          anchor: const Offset(0.5, 1.0),
+          onTap: () => _onCheckInMarkerTapped(c),
+          infoWindow: InfoWindow.noText,
+        ),
+      );
     }
 
     return markers;
   }
-
 
   // ── Long-press / check-in ─────────────────────────────────────────────────
 
@@ -348,9 +399,9 @@ class MapScreenState extends State<MapScreen> {
   }
 
   void _dismissLevel1() => setState(() {
-        _showLevel1Dialog = false;
-        _pendingLongPressPosition = null;
-      });
+    _showLevel1Dialog = false;
+    _pendingLongPressPosition = null;
+  });
 
   Future<void> _onCheckInSaved() async {
     await _loadCheckIns();
@@ -361,16 +412,16 @@ class MapScreenState extends State<MapScreen> {
 
   void _onCheckInMarkerTapped(CheckInLocation c) {
     setState(() {
-      _selectedCheckIn  = c;
-      _showInfoPanel    = true;
+      _selectedCheckIn = c;
+      _showInfoPanel = true;
       _showLevel1Dialog = false;
     });
   }
 
   void _closeInfoPanel() => setState(() {
-        _showInfoPanel   = false;
-        _selectedCheckIn = null;
-      });
+    _showInfoPanel = false;
+    _selectedCheckIn = null;
+  });
 
   Future<void> _onCheckInEdited() async {
     await _loadCheckIns();
@@ -392,23 +443,25 @@ class MapScreenState extends State<MapScreen> {
     try {
       if (!await _handleLocationPermission()) {
         setState(() {
-          _isLoading    = false;
+          _isLoading = false;
           _errorMessage = 'Location permission denied';
         });
         return;
       }
 
       final position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high);
+        desiredAccuracy: LocationAccuracy.high,
+      );
       setState(() {
         _currentPosition = position;
-        _isLoading       = false;
+        _isLoading = false;
       });
       _recordVisit(position);
+      _refreshWeather();
       _startLocationUpdates();
     } catch (e) {
       setState(() {
-        _isLoading    = false;
+        _isLoading = false;
         _errorMessage = 'Error getting location: $e';
       });
     }
@@ -429,32 +482,40 @@ class MapScreenState extends State<MapScreen> {
     }
     if (perm == LocationPermission.deniedForever) {
       setState(
-          () => _errorMessage = 'Location permissions are permanently denied');
+        () => _errorMessage = 'Location permissions are permanently denied',
+      );
       return false;
     }
     return true;
   }
 
   void _startLocationUpdates() {
-    _locationSubscription = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy:       LocationAccuracy.high,
-        distanceFilter: 10,
-      ),
-    ).listen((position) {
-      if (!mounted) return;
-      setState(() {
-        _currentPosition = position;
-      });
-      _recordVisit(position);
-    });
+    _locationSubscription =
+        Geolocator.getPositionStream(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+            distanceFilter: 10,
+          ),
+        ).listen((position) {
+          if (!mounted) return;
+          setState(() {
+            _currentPosition = position;
+          });
+          _recordVisit(position);
+          _refreshWeather();
+        });
   }
 
   void _recordVisit(Position position) {
     final pt = VisitedPoint(
-        latitude: position.latitude, longitude: position.longitude);
-    if (ExplorationService.shouldAddPoint(pt, _visitedPoints,
-        thresholdMetres: 30.0)) {
+      latitude: position.latitude,
+      longitude: position.longitude,
+    );
+    if (ExplorationService.shouldAddPoint(
+      pt,
+      _visitedPoints,
+      thresholdMetres: 30.0,
+    )) {
       setState(() => _visitedPoints = [..._visitedPoints, pt]);
       ExplorationService.saveVisitedPoints(_visitedPoints);
       _reprojectAll();
@@ -467,11 +528,15 @@ class MapScreenState extends State<MapScreen> {
     _mapController = controller;
     if (_currentPosition != null) {
       await controller.animateCamera(
-        CameraUpdate.newCameraPosition(CameraPosition(
-          target: LatLng(
-              _currentPosition!.latitude, _currentPosition!.longitude),
-          zoom: kBaseZoom,
-        )),
+        CameraUpdate.newCameraPosition(
+          CameraPosition(
+            target: LatLng(
+              _currentPosition!.latitude,
+              _currentPosition!.longitude,
+            ),
+            zoom: kBaseZoom,
+          ),
+        ),
       );
     }
     _reprojectAll();
@@ -498,8 +563,9 @@ class MapScreenState extends State<MapScreen> {
     try {
       final positions = <Offset>[];
       for (final pt in _visitedPoints) {
-        final sc = await _mapController!
-            .getScreenCoordinate(LatLng(pt.latitude, pt.longitude));
+        final sc = await _mapController!.getScreenCoordinate(
+          LatLng(pt.latitude, pt.longitude),
+        );
         positions.add(Offset(sc.x.toDouble(), sc.y.toDouble()));
       }
       if (mounted) setState(() => _screenPositions = positions);
@@ -512,8 +578,9 @@ class MapScreenState extends State<MapScreen> {
   double _revealRadius() {
     const double earthCircumference = 40075016.686;
     const double tileSize = 256.0;
-    final double lat   = _currentPosition?.latitude ?? 0.0;
-    final double mpp   = earthCircumference *
+    final double lat = _currentPosition?.latitude ?? 0.0;
+    final double mpp =
+        earthCircumference *
         cos(lat * pi / 180.0) /
         (tileSize * pow(2, _currentZoom));
     return kRevealRadiusMetres / mpp;
@@ -523,149 +590,171 @@ class MapScreenState extends State<MapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(children: [
-      // ── Google Map ─────────────────────────────────────────────────────
-      GoogleMap(
-        onMapCreated:      _onMapCreated,
-        onCameraMove:      _onCameraMove,
-        onCameraIdle:      _onCameraIdle,
-        onLongPress:       _onMapLongPress,
-        onTap: (_) {
-          if (_showLevel1Dialog) _dismissLevel1();
-          if (_showInfoPanel)    _closeInfoPanel();
-        },
-        initialCameraPosition: _initialPosition,
-        myLocationEnabled:       true,
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled:     false,
-        zoomGesturesEnabled:     true,
-        scrollGesturesEnabled:   true,
-        tiltGesturesEnabled:     true,
-        rotateGesturesEnabled:   true,
-        mapType: widget.mapStyle == 'satellite'
-            ? MapType.satellite
-            : MapType.normal,
-        markers: _buildMarkers(),
-      ),
+    return Stack(
+      children: [
+        // ── Google Map ─────────────────────────────────────────────────────
+        GoogleMap(
+          onMapCreated: _onMapCreated,
+          onCameraMove: _onCameraMove,
+          onCameraIdle: _onCameraIdle,
+          onLongPress: _onMapLongPress,
+          onTap: (_) {
+            if (_showLevel1Dialog) _dismissLevel1();
+            if (_showInfoPanel) _closeInfoPanel();
+          },
+          initialCameraPosition: _initialPosition,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: false,
+          zoomControlsEnabled: false,
+          zoomGesturesEnabled: true,
+          scrollGesturesEnabled: true,
+          tiltGesturesEnabled: true,
+          rotateGesturesEnabled: true,
+          mapType: widget.mapStyle == 'satellite'
+              ? MapType.satellite
+              : MapType.normal,
+          markers: _buildMarkers(),
+        ),
 
-      // ── Exploration fog ────────────────────────────────────────────────
-      if (!_isLoading && _errorMessage.isEmpty && _screenPositions.isNotEmpty)
-        Positioned.fill(
-          child: IgnorePointer(
-            child: CustomPaint(
-              painter: ExplorationPathPainter(
-                screenPositions: _screenPositions,
-                revealRadius:    _revealRadius(),
+        // ── Exploration fog ────────────────────────────────────────────────
+        if (!_isLoading && _errorMessage.isEmpty && _screenPositions.isNotEmpty)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CustomPaint(
+                painter: ExplorationPathPainter(
+                  screenPositions: _screenPositions,
+                  revealRadius: _revealRadius(),
+                ),
               ),
             ),
           ),
-        ),
 
-      // ── Loading ────────────────────────────────────────────────────────
-      if (_isLoading)
-        Container(
-          color: Colors.white,
-          child: const Center(
-            child: CircularProgressIndicator(
-                color: Color.fromARGB(255, 255, 210, 75)),
+        // ── Loading ────────────────────────────────────────────────────────
+        if (_isLoading)
+          Container(
+            color: Colors.white,
+            child: const Center(
+              child: CircularProgressIndicator(
+                color: Color.fromARGB(255, 255, 210, 75),
+              ),
+            ),
           ),
-        ),
 
-      // ── Error ──────────────────────────────────────────────────────────
-      if (_errorMessage.isNotEmpty && !_isLoading)
-        Container(
-          color: Colors.white,
-          child: Center(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.location_off, size: 64, color: Colors.grey[400]),
-                  const SizedBox(height: 16),
-                  Text(_errorMessage,
+        // ── Error ──────────────────────────────────────────────────────────
+        if (_errorMessage.isNotEmpty && !_isLoading)
+          Container(
+            color: Colors.white,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.location_off, size: 64, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(
+                      _errorMessage,
                       textAlign: TextAlign.center,
-                      style:
-                          TextStyle(color: Colors.grey[600], fontSize: 16)),
-                  const SizedBox(height: 24),
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _isLoading    = true;
-                        _errorMessage = '';
-                      });
-                      _initializeLocation();
-                    },
-                    style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            const Color.fromARGB(255, 255, 210, 75)),
-                    child: const Text('Retry'),
-                  ),
-                ],
+                      style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _isLoading = true;
+                          _errorMessage = '';
+                        });
+                        _initializeLocation();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromARGB(
+                          255,
+                          255,
+                          210,
+                          75,
+                        ),
+                      ),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
 
-      // ── My-location FAB ────────────────────────────────────────────────
-      if (!_isLoading && _errorMessage.isEmpty)
-        Positioned(
-          bottom: 100,
-          right:  16,
-          child: FloatingActionButton(
-            backgroundColor: Colors.white,
-            onPressed: () {
-              if (_currentPosition != null && _mapController != null) {
-                _mapController!.animateCamera(
-                  CameraUpdate.newCameraPosition(CameraPosition(
-                    target: LatLng(_currentPosition!.latitude,
-                        _currentPosition!.longitude),
-                    zoom: kBaseZoom,
-                  )),
-                );
-              }
-            },
-            child: const Icon(Icons.my_location,
-                color: Color.fromARGB(255, 151, 86, 0)),
+        // ── Floating weather widget ────────────────────────────────────────
+        if (!_isLoading && _errorMessage.isEmpty && _currentWeather != null)
+          Positioned(
+            top: MediaQuery.of(context).padding.top + 16,
+            right: 16,
+            child: _WeatherWidget(weather: _currentWeather!),
           ),
-        ),
 
-      // ── Level-1 check-in dialog ────────────────────────────────────────
-      if (_showLevel1Dialog && _pendingLongPressPosition != null)
-        Positioned.fill(
-          child: GestureDetector(
-            onTap: _dismissLevel1,
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.25),
-              child: CheckInLevel1Dialog(
-                position:       _pendingLongPressPosition!,
-                onDismiss:      _dismissLevel1,
-                onCheckInSaved: _onCheckInSaved,
+        // ── My-location FAB ────────────────────────────────────────────────
+        if (!_isLoading && _errorMessage.isEmpty)
+          Positioned(
+            bottom: 100,
+            right: 16,
+            child: FloatingActionButton(
+              backgroundColor: Colors.white,
+              onPressed: () {
+                if (_currentPosition != null && _mapController != null) {
+                  _mapController!.animateCamera(
+                    CameraUpdate.newCameraPosition(
+                      CameraPosition(
+                        target: LatLng(
+                          _currentPosition!.latitude,
+                          _currentPosition!.longitude,
+                        ),
+                        zoom: kBaseZoom,
+                      ),
+                    ),
+                  );
+                }
+              },
+              child: const Icon(
+                Icons.my_location,
+                color: Color.fromARGB(255, 151, 86, 0),
               ),
             ),
           ),
-        ),
 
-      // ── Check-in info panel ────────────────────────────────────────────
-      if (_showInfoPanel && _selectedCheckIn != null)
-        Positioned.fill(
-          child: GestureDetector(
-            onTap: _closeInfoPanel,
-            child: Container(
-              color: Colors.black.withValues(alpha: 0.25),
-              child: CheckInInfoPanel(
-                checkin:   _selectedCheckIn!,
-                onClose:   _closeInfoPanel,
-                onEdited:  _onCheckInEdited,
-                onDeleted: _onCheckInDeleted,
+        // ── Level-1 check-in dialog ────────────────────────────────────────
+        if (_showLevel1Dialog && _pendingLongPressPosition != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _dismissLevel1,
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: CheckInLevel1Dialog(
+                  position: _pendingLongPressPosition!,
+                  onDismiss: _dismissLevel1,
+                  onCheckInSaved: _onCheckInSaved,
+                ),
               ),
             ),
           ),
-        ),
-    ]);
+
+        // ── Check-in info panel ────────────────────────────────────────────
+        if (_showInfoPanel && _selectedCheckIn != null)
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: _closeInfoPanel,
+              child: Container(
+                color: Colors.black.withValues(alpha: 0.25),
+                child: CheckInInfoPanel(
+                  checkin: _selectedCheckIn!,
+                  onClose: _closeInfoPanel,
+                  onEdited: _onCheckInEdited,
+                  onDeleted: _onCheckInDeleted,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
-
 
 // ── Shake toast widget ────────────────────────────────────────────────────────
 
@@ -736,16 +825,12 @@ class _ShakeToastState extends State<_ShakeToast>
                     offset: const Offset(0, 4),
                   ),
                 ],
-                border: Border.all(
-                  color: const Color(0xFFFFD24B),
-                  width: 1.5,
-                ),
+                border: Border.all(color: const Color(0xFFFFD24B), width: 1.5),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(widget.emoji,
-                      style: const TextStyle(fontSize: 22)),
+                  Text(widget.emoji, style: const TextStyle(fontSize: 22)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -785,7 +870,6 @@ class _ShakeToastState extends State<_ShakeToast>
   }
 }
 
-
 // ── Exploration fog painter ───────────────────────────────────────────────────
 
 class ExplorationPathPainter extends CustomPainter {
@@ -817,10 +901,9 @@ class ExplorationPathPainter extends CustomPainter {
           centre,
           revealRadius + (i * revealRadius * 0.06),
           Paint()
-            ..blendMode  = ui.BlendMode.clear
+            ..blendMode = ui.BlendMode.clear
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6)
-            ..color      = Colors.black
-                .withValues(alpha: 0.55 * (1.0 - i / 8.0)),
+            ..color = Colors.black.withValues(alpha: 0.55 * (1.0 - i / 8.0)),
         );
       }
     }
@@ -830,5 +913,58 @@ class ExplorationPathPainter extends CustomPainter {
   @override
   bool shouldRepaint(ExplorationPathPainter old) =>
       old.screenPositions != screenPositions ||
-      old.revealRadius    != revealRadius;
+      old.revealRadius != revealRadius;
+}
+// ── Floating weather widget ───────────────────────────────────────────────────
+
+class _WeatherWidget extends StatelessWidget {
+  final WeatherData weather;
+
+  const _WeatherWidget({required this.weather});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFF8F0),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 12,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(weather.emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 6),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '${weather.tempCelsius.toStringAsFixed(0)}°C',
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3D2000),
+                ),
+              ),
+              Text(
+                weather.condition,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Colors.brown[400],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }

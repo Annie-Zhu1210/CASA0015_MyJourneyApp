@@ -17,12 +17,16 @@ class CheckInEditor extends StatefulWidget {
   final LatLng position;
   final CheckInLocation? existing; // null = new check-in
   final VoidCallback onSaved;
+  final String? weatherCondition;
+  final double? weatherTemp;
 
   const CheckInEditor({
     super.key,
     required this.position,
     this.existing,
     required this.onSaved,
+    this.weatherCondition,
+    this.weatherTemp,
   });
 
   @override
@@ -276,6 +280,8 @@ class _CheckInEditorState extends State<CheckInEditor> {
             mediaPaths: _mediaPaths,
             createdAt: now,
             updatedAt: now,
+            weatherCondition: widget.weatherCondition,
+            weatherTemp: widget.weatherTemp,
           )
         : widget.existing!.copyWith(
             emoji: _emoji,

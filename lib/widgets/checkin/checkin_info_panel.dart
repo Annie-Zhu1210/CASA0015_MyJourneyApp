@@ -183,6 +183,24 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
     }
   }
 
+  // ── Weather emoji helper ──────────────────────────────────────────────────
+
+  String _weatherEmoji(String condition) {
+    final lc = condition.toLowerCase();
+    if (lc.contains('thunderstorm')) return '⛈️';
+    if (lc.contains('drizzle')) return '🌦️';
+    if (lc.contains('rain')) return '🌧️';
+    if (lc.contains('snow')) return '❄️';
+    if (lc.contains('clear')) return '☀️';
+    if (lc.contains('few clouds')) return '🌤️';
+    if (lc.contains('scattered clouds')) return '⛅';
+    if (lc.contains('cloud')) return '☁️';
+    if (lc.contains('fog') || lc.contains('mist') || lc.contains('haze')) {
+      return '🌫️';
+    }
+    return '🌡️';
+  }
+
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
@@ -271,7 +289,77 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Notes
+
+                          // ── Weather ──────────────────────────────────
+                          if (checkin.weatherDisplay != null) ...[
+                            const _SectionLabel(label: 'Weather'),
+                            const SizedBox(height: 6),
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFD24B)
+                                    .withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFFFD24B)
+                                      .withOpacity(0.55),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    _weatherEmoji(checkin.weatherCondition!),
+                                    style: const TextStyle(fontSize: 26),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${checkin.weatherTemp!.toStringAsFixed(0)}°C',
+                                        style: const TextStyle(
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF3D2000),
+                                        ),
+                                      ),
+                                      Text(
+                                        checkin.weatherCondition!,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.brown[500],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const Spacer(),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFD24B)
+                                          .withOpacity(0.35),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      'At check-in',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.brown[500],
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                          ],
+
+                          // ── Notes ────────────────────────────────────
                           if (checkin.details != null &&
                               checkin.details!.isNotEmpty) ...[
                             const _SectionLabel(label: 'Notes'),
@@ -302,7 +390,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                             const SizedBox(height: 14),
                           ],
 
-                          // Photos
+                          // ── Photos ───────────────────────────────────
                           if (checkin.mediaPaths.isNotEmpty) ...[
                             const _SectionLabel(label: 'Photos'),
                             const SizedBox(height: 8),
@@ -356,7 +444,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                             const SizedBox(height: 14),
                           ],
 
-                          // Timestamp
+                          // ── Timestamp ────────────────────────────────
                           Text(
                             'Saved on ${_formatDate(checkin.createdAt)}',
                             style: TextStyle(
@@ -480,18 +568,8 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
