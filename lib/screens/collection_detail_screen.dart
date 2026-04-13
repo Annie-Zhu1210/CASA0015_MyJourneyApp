@@ -1,5 +1,3 @@
-// lib/screens/collection_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import '../models/checkin_location.dart';
@@ -28,8 +26,6 @@ class CollectionDetailScreen extends StatefulWidget {
 
 class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
   late List<CheckInLocation> _locations;
-
-  /// Place strings keyed by location ID. Populated once, never recomputed.
   final Map<String, String> _places = {};
 
   @override
@@ -66,6 +62,7 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
     return '${loc.latitude.toStringAsFixed(4)}, '
         '${loc.longitude.toStringAsFixed(4)}';
   }
+
 
   void _openDetail(CheckInLocation checkIn) {
     Navigator.push(
@@ -164,10 +161,9 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
           IconButton(
             onPressed: () => Navigator.pop(context, _locations),
             icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Color(0xFF975600), size: 20),
+            color: Color(0xFF975600), size: 20),
             tooltip: 'Back',
           ),
-          const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -212,11 +208,11 @@ class _CollectionDetailScreenState extends State<CollectionDetailScreen> {
   }
 }
 
-// ── Location card — stateless, receives pre-resolved place string ─────────────
+// ── Location card ─────────────────────────────────────────────────────────────
 
 class _LocationCard extends StatelessWidget {
   final CheckInLocation checkIn;
-  final String? place; // null = still loading
+  final String? place;
   final VoidCallback onTap;
 
   const _LocationCard({

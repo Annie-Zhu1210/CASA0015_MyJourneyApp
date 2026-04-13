@@ -1,20 +1,19 @@
-// lib/screens/locations_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:uuid/uuid.dart';
 import '../models/checkin_location.dart';
 import '../models/collections_model.dart';
-import '../services/collections_database.dart';
 import '../constants/checkin_labels.dart';
 import 'location_detail_screen.dart';
 import 'collection_detail_screen.dart';
 import 'custom_collection_detail_screen.dart';
+import '../services/collections_database.dart';
+import '../services/noticeboard_service.dart';
 
 // ── Collection tab enum ───────────────────────────────────────────────────────
 
-enum _CollectionTab { city, label, myCollections }
+enum _CollectionTab { city, label, myCollections, fromFriends }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
 
@@ -87,10 +86,13 @@ class _LocationsScreenState extends State<LocationsScreen> {
                     ),
                   ),
                   const Spacer(),
+                  // ── Count badge ─────────────────────────────────────────
                   if (widget.checkIns.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xFFFFD227),
                         borderRadius: BorderRadius.circular(20),
@@ -131,7 +133,10 @@ class _LocationsScreenState extends State<LocationsScreen> {
 
             // ── Content ──────────────────────────────────────────────────
             Expanded(
-              child: widget.checkIns.isEmpty && _activeTab != _CollectionTab.myCollections
+              child:
+                  widget.checkIns.isEmpty &&
+                      _activeTab != _CollectionTab.myCollections &&
+                      _activeTab != _CollectionTab.fromFriends
                   ? _buildEmptyState()
                   : _buildActiveView(),
             ),
@@ -146,26 +151,35 @@ class _LocationsScreenState extends State<LocationsScreen> {
   Widget _buildTabSelector() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
-      child: Row(
-        children: [
-          _TabOption(
-            label: 'City',
-            isActive: _activeTab == _CollectionTab.city,
-            onTap: () => _switchTab(_CollectionTab.city),
-          ),
-          const SizedBox(width: 16),
-          _TabOption(
-            label: 'Label',
-            isActive: _activeTab == _CollectionTab.label,
-            onTap: () => _switchTab(_CollectionTab.label),
-          ),
-          const SizedBox(width: 16),
-          _TabOption(
-            label: 'My Collections',
-            isActive: _activeTab == _CollectionTab.myCollections,
-            onTap: () => _switchTab(_CollectionTab.myCollections),
-          ),
-        ],
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _TabOption(
+              label: 'City',
+              isActive: _activeTab == _CollectionTab.city,
+              onTap: () => _switchTab(_CollectionTab.city),
+            ),
+            const SizedBox(width: 16),
+            _TabOption(
+              label: 'Label',
+              isActive: _activeTab == _CollectionTab.label,
+              onTap: () => _switchTab(_CollectionTab.label),
+            ),
+            const SizedBox(width: 16),
+            _TabOption(
+              label: 'My Collections',
+              isActive: _activeTab == _CollectionTab.myCollections,
+              onTap: () => _switchTab(_CollectionTab.myCollections),
+            ),
+            const SizedBox(width: 16),
+            _TabOption(
+              label: 'From Friends',
+              isActive: _activeTab == _CollectionTab.fromFriends,
+              onTap: () => _switchTab(_CollectionTab.fromFriends),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -199,6 +213,8 @@ class _LocationsScreenState extends State<LocationsScreen> {
           },
           onCollectionsChanged: _loadCollections,
         );
+      case _CollectionTab.fromFriends:
+        return const _FromFriendsView();
     }
   }
 
@@ -297,20 +313,14 @@ class _CityView extends StatefulWidget {
 }
 
 class _CityViewState extends State<_CityView> {
-  // Map from city key → list of check-ins (ordered newest first initially)
   Map<String, List<CheckInLocation>> _cityMap = {};
-  // Ordered list of city keys (newest city first)
   List<String> _cityKeys = [];
-  // Display names for each city key
   final Map<String, String> _cityDisplayNames = {};
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    // Clear the cache on every fresh mount so stale locale-dependent entries
-    // (e.g. "伦敦" from a previous session) don't prevent correct merging.
-    _geocodeCache.clear();
     _buildCityMap();
   }
 
@@ -320,73 +330,13 @@ class _CityViewState extends State<_CityView> {
     if (oldWidget.checkIns != widget.checkIns) _buildCityMap();
   }
 
-  // Cache keyed by "lat4,lng4" (4 decimal places ≈ 11m precision).
-  // Stores the resolved (cityKey, displayName).
-  // cityKey uses lowercase normalised city name + isoCountryCode so that
-  // locale-translated strings ("伦敦" vs "london") never split the same city.
-  static final Map<String, (String, String)> _geocodeCache = {};
-
-  /// Normalises a city name to a stable lowercase ASCII-ish key.
-  /// Removes diacritics and converts to lowercase so locale differences
-  /// (e.g. "London" vs "伦敦") produce a consistent key when combined
-  /// with isoCountryCode.
-  static String _normaliseCityName(String city) {
-    // Use the string's codeUnits to strip non-ASCII characters, falling back
-    // to keeping the full string if it is entirely non-ASCII (e.g. Arabic).
-    final ascii = city.codeUnits
-        .where((c) => c < 128)
-        .map((c) => String.fromCharCode(c))
-        .join()
-        .trim()
-        .toLowerCase();
-    return ascii.isNotEmpty ? ascii : city.toLowerCase();
-  }
-
   Future<void> _buildCityMap() async {
-    // ── Phase 1: synchronous grouping with cached data ─────────────────────
-    // Update the display immediately using whatever is already cached,
-    // so label/emoji edits are reflected without waiting for geocoding.
+    setState(() => _loading = true);
+
     final Map<String, List<CheckInLocation>> cityMap = {};
     final Map<String, String> displayNames = {};
 
     for (final c in widget.checkIns) {
-      final coordKey =
-          '${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}';
-      final cityKey = _geocodeCache.containsKey(coordKey)
-          ? _geocodeCache[coordKey]!.$1
-          : coordKey; // temporary key until geocoded
-      final displayName = _geocodeCache.containsKey(coordKey)
-          ? _geocodeCache[coordKey]!.$2
-          : '…';
-      cityMap.putIfAbsent(cityKey, () => []).add(c);
-      displayNames[cityKey] = displayName;
-    }
-
-    for (final key in cityMap.keys) {
-      cityMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    }
-
-    final sortedKeys = cityMap.keys.toList()
-      ..sort((a, b) => cityMap[b]!.first.createdAt
-          .compareTo(cityMap[a]!.first.createdAt));
-
-    if (mounted) {
-      setState(() {
-        _cityMap = cityMap;
-        _cityKeys = sortedKeys;
-        _cityDisplayNames.addAll(displayNames);
-        _loading = false;
-      });
-    }
-
-    // ── Phase 2: geocode any uncached coordinates ──────────────────────────
-    bool anyNewResults = false;
-    for (final c in widget.checkIns) {
-      if (!mounted) return;
-      final coordKey =
-          '${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}';
-      if (_geocodeCache.containsKey(coordKey)) continue;
-
       String cityKey;
       String displayName;
       try {
@@ -397,25 +347,15 @@ class _CityViewState extends State<_CityView> {
         );
         if (placemarks.isNotEmpty) {
           final p = placemarks.first;
-          final rawCity =
+          final city =
               (p.locality?.isNotEmpty == true ? p.locality! : null) ??
-                  (p.subAdministrativeArea?.isNotEmpty == true
-                      ? p.subAdministrativeArea!
-                      : null) ??
-                  (p.administrativeArea?.isNotEmpty == true
-                      ? p.administrativeArea!
-                      : null) ??
-                  'Unknown';
-          final isoCode = p.isoCountryCode?.toUpperCase() ?? '';
-          final countryDisplay = p.country ?? '';
-          // Key: normalised lowercase city name + ISO country code.
-          // This is locale-independent: "London|GB" == "伦敦|GB" after
-          // normalisation because the non-ASCII chars are stripped and
-          // the isoCode anchors them to the same country.
-          cityKey = '${_normaliseCityName(rawCity)}|$isoCode';
-          displayName = countryDisplay.isNotEmpty
-              ? '$rawCity, $countryDisplay'
-              : rawCity;
+              (p.administrativeArea?.isNotEmpty == true
+                  ? p.administrativeArea!
+                  : null) ??
+              'Unknown';
+          final country = p.country?.isNotEmpty == true ? p.country! : '';
+          cityKey = '$city|$country';
+          displayName = country.isNotEmpty ? '$city, $country' : city;
         } else {
           cityKey = 'unknown';
           displayName = 'Unknown';
@@ -425,50 +365,33 @@ class _CityViewState extends State<_CityView> {
         displayName = 'Unknown';
       }
 
-      _geocodeCache[coordKey] = (cityKey, displayName);
-      anyNewResults = true;
+      cityMap.putIfAbsent(cityKey, () => []).add(c);
+      displayNames[cityKey] = displayName;
     }
 
-    // ── Phase 3: if any new geocoding happened, rebuild the map ────────────
-    // This replaces temp coordKey buckets with real city name keys and
-    // merges any that ended up in the same city.
-    if (!anyNewResults || !mounted) return;
-
-    final Map<String, List<CheckInLocation>> finalMap = {};
-    final Map<String, String> finalNames = {};
-
-    for (final c in widget.checkIns) {
-      final coordKey =
-          '${c.latitude.toStringAsFixed(4)},${c.longitude.toStringAsFixed(4)}';
-      final entry = _geocodeCache[coordKey]!;
-      finalMap.putIfAbsent(entry.$1, () => []).add(c);
-      finalNames[entry.$1] = entry.$2;
+    for (final key in cityMap.keys) {
+      cityMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
-    for (final key in finalMap.keys) {
-      finalMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    }
-
-    final finalKeys = finalMap.keys.toList()
-      ..sort((a, b) => finalMap[b]!.first.createdAt
-          .compareTo(finalMap[a]!.first.createdAt));
+    final cityKeys = cityMap.keys.toList()
+      ..sort((a, b) {
+        final latestA = cityMap[a]!.first.createdAt;
+        final latestB = cityMap[b]!.first.createdAt;
+        return latestB.compareTo(latestA);
+      });
 
     if (mounted) {
       setState(() {
-        _cityMap = finalMap;
-        _cityKeys = finalKeys;
-        _cityDisplayNames
-          ..clear()
-          ..addAll(finalNames);
+        _cityMap = cityMap;
+        _cityKeys = cityKeys;
+        _cityDisplayNames.addAll(displayNames);
         _loading = false;
       });
     }
   }
 
   void _openCollection(String cityKey) async {
-    // Re-derive from the latest _cityMap entry so edits (e.g. label changes)
-    // are reflected immediately when opening the collection.
-    final locations = List<CheckInLocation>.from(_cityMap[cityKey] ?? []);
+    final locations = List<CheckInLocation>.from(_cityMap[cityKey]!);
     final result = await Navigator.push<List<CheckInLocation>>(
       context,
       _slideRightRoute<List<CheckInLocation>>(
@@ -481,7 +404,6 @@ class _CityViewState extends State<_CityView> {
         ),
       ),
     );
-    // Persist reordered locations for this city
     if (result != null && mounted) {
       setState(() => _cityMap[cityKey] = result);
     }
@@ -500,7 +422,9 @@ class _CityViewState extends State<_CityView> {
         child: Text(
           'No city collections yet',
           style: TextStyle(
-              fontSize: 15, color: const Color(0xFF3E1F00).withOpacity(0.4)),
+            fontSize: 15,
+            color: const Color(0xFF3E1F00).withOpacity(0.4),
+          ),
         ),
       );
     }
@@ -537,10 +461,8 @@ class _LabelView extends StatefulWidget {
 }
 
 class _LabelViewState extends State<_LabelView> {
-  // Ordered list of label keys (preset word or 'others')
   List<String> _labelKeys = [];
   Map<String, List<CheckInLocation>> _labelMap = {};
-  // Display titles for each key
   final Map<String, String> _labelTitles = {};
 
   static const String _othersKey = '__others__';
@@ -572,19 +494,15 @@ class _LabelViewState extends State<_LabelView> {
       labelMap.putIfAbsent(key, () => []).add(c);
     }
 
-    // Sort locations within each group newest→oldest
     for (final key in labelMap.keys) {
       labelMap[key]!.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
-    // Build ordered keys: follow preset order first, then Others at end
     final orderedKeys = <String>[];
-    // Add preset labels that have entries, in newest-first order by latest entry
     final usedPresets = kPresetLabels
         .map((l) => l.word)
         .where((w) => labelMap.containsKey(w))
         .toList();
-    // Sort used presets by most recent entry
     usedPresets.sort((a, b) {
       final latestA = labelMap[a]!.first.createdAt;
       final latestB = labelMap[b]!.first.createdAt;
@@ -593,7 +511,6 @@ class _LabelViewState extends State<_LabelView> {
     orderedKeys.addAll(usedPresets);
     if (labelMap.containsKey(_othersKey)) orderedKeys.add(_othersKey);
 
-    // Build display titles
     final Map<String, String> titles = {};
     for (final preset in kPresetLabels) {
       titles[preset.word] = '${preset.emoji} ${preset.word}';
@@ -608,27 +525,15 @@ class _LabelViewState extends State<_LabelView> {
   }
 
   void _openCollection(String labelKey) async {
-    // Always re-derive from the current widget.checkIns so that any label
-    // edits made since the map was last built are immediately reflected,
-    // rather than showing the stale pre-edit objects held in _labelMap.
-    final presetWords = kPresetLabels.map((l) => l.word).toSet();
-    final freshLocations = widget.checkIns.where((c) {
-      final word = c.labelWord;
-      if (labelKey == _othersKey) {
-        return word == null || !presetWords.contains(word);
-      }
-      return word == labelKey;
-    }).toList()
-      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
+    final locations = List<CheckInLocation>.from(_labelMap[labelKey]!);
     final result = await Navigator.push<List<CheckInLocation>>(
       context,
       _slideRightRoute<List<CheckInLocation>>(
         CollectionDetailScreen(
           title: _labelTitles[labelKey] ?? labelKey,
           subtitle:
-              '${freshLocations.length} location${freshLocations.length == 1 ? '' : 's'}',
-          locations: freshLocations,
+              '${locations.length} location${locations.length == 1 ? '' : 's'}',
+          locations: locations,
           onChanged: widget.onChanged,
         ),
       ),
@@ -645,7 +550,9 @@ class _LabelViewState extends State<_LabelView> {
         child: Text(
           'No label collections yet',
           style: TextStyle(
-              fontSize: 15, color: const Color(0xFF3E1F00).withOpacity(0.4)),
+            fontSize: 15,
+            color: const Color(0xFF3E1F00).withOpacity(0.4),
+          ),
         ),
       );
     }
@@ -690,8 +597,6 @@ class _MyCollectionsView extends StatefulWidget {
 
 class _MyCollectionsViewState extends State<_MyCollectionsView> {
   late List<CustomCollection> _collections;
-
-  /// Place strings for ungrouped cards, keyed by location ID.
   final Map<String, String> _places = {};
 
   @override
@@ -707,7 +612,6 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
     if (oldWidget.collections != widget.collections) {
       setState(() => _collections = List.from(widget.collections));
     }
-    // Geocode any newly ungrouped locations not yet in the map
     _geocodeUngrouped();
   }
 
@@ -740,28 +644,17 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
         '${loc.longitude.toStringAsFixed(4)}';
   }
 
-  // ── Ungrouped locations (not in any custom collection) ────────────────────
-
   List<CheckInLocation> get _ungroupedLocations {
-    final allAssigned = _collections
-        .expand((c) => c.locationIds)
-        .toSet();
-    return widget.checkIns
-        .where((l) => !allAssigned.contains(l.id))
-        .toList()
+    final allAssigned = _collections.expand((c) => c.locationIds).toSet();
+    return widget.checkIns.where((l) => !allAssigned.contains(l.id)).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   List<CheckInLocation> _locationsForCollection(CustomCollection collection) {
     final idOrder = collection.locationIds;
     final byId = {for (final l in widget.checkIns) l.id: l};
-    return idOrder
-        .map((id) => byId[id])
-        .whereType<CheckInLocation>()
-        .toList();
+    return idOrder.map((id) => byId[id]).whereType<CheckInLocation>().toList();
   }
-
-  // ── Create collection ─────────────────────────────────────────────────────
 
   Future<void> _showCreateDialog() async {
     final name = await showDialog<String>(
@@ -775,10 +668,9 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
       name: name.trim(),
       locationIds: [],
       createdAt: DateTime.now(),
-      sortOrder: 0, // will be placed at top
+      sortOrder: 0,
     );
 
-    // Shift existing sort orders down
     final updated = _collections
         .map((c) => c.copyWith(sortOrder: c.sortOrder + 1))
         .toList();
@@ -786,15 +678,10 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
       await CollectionsDatabase.update(c);
     }
     await CollectionsDatabase.insert(newCollection);
-
     widget.onCollectionsChanged();
   }
 
-  // ── Reorder collections ───────────────────────────────────────────────────
-
   Future<void> _onReorder(int oldIndex, int newIndex) async {
-    // The ungrouped list is at index 0 virtually — collections start after.
-    // But in this list we only show collections, so indices map directly.
     setState(() {
       if (newIndex > oldIndex) newIndex--;
       final item = _collections.removeAt(oldIndex);
@@ -803,8 +690,6 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
     await CollectionsDatabase.updateOrder(_collections);
     widget.onCollectionsChanged();
   }
-
-  // ── Open collection ───────────────────────────────────────────────────────
 
   void _openCollection(CustomCollection collection) {
     final locs = _locationsForCollection(collection);
@@ -821,16 +706,13 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
           },
         ),
       ),
-    ).then((_) {
-      // Reload so preview emojis reflect any reorder done inside the collection
-      widget.onCollectionsChanged();
-    });
+    ).then((_) => widget.onCollectionsChanged());
   }
 
-  // ── Drop ungrouped location into a collection ─────────────────────────────
-
   Future<void> _dropIntoCollection(
-      CheckInLocation loc, String collectionId) async {
+    CheckInLocation loc,
+    String collectionId,
+  ) async {
     final target = _collections.firstWhere((c) => c.id == collectionId);
     final updatedIds = [...target.locationIds, loc.id];
     final updated = target.copyWith(locationIds: updatedIds);
@@ -838,16 +720,11 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
     widget.onCollectionsChanged();
   }
 
-  // ── Open ungrouped location ───────────────────────────────────────────────
-
   void _openLocation(CheckInLocation checkIn) {
     Navigator.push(
       context,
       _slideRightRoute(
-        LocationDetailScreen(
-          checkIn: checkIn,
-          onChanged: widget.onChanged,
-        ),
+        LocationDetailScreen(checkIn: checkIn, onChanged: widget.onChanged),
       ),
     );
   }
@@ -858,7 +735,6 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
 
     return CustomScrollView(
       slivers: [
-        // ── Collections section (reorderable) ────────────────────────────
         if (_collections.isNotEmpty)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
@@ -906,8 +782,7 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
                   index: index,
                   child: DragTarget<CheckInLocation>(
                     onWillAcceptWithDetails: (details) =>
-                        !collection.locationIds
-                            .contains(details.data.id),
+                        !collection.locationIds.contains(details.data.id),
                     onAcceptWithDetails: (details) =>
                         _dropIntoCollection(details.data, collection.id),
                     builder: (context, candidateData, rejectedData) {
@@ -926,8 +801,10 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
                         child: _CollectionCard(
                           title: collection.name,
                           count: locs.length,
-                          previewEmojis:
-                              locs.take(3).map((l) => l.emoji).toList(),
+                          previewEmojis: locs
+                              .take(3)
+                              .map((l) => l.emoji)
+                              .toList(),
                           onTap: () => _openCollection(collection),
                           showDragHandle: true,
                           isDropTarget: isHovered,
@@ -940,7 +817,6 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
             ),
           ),
 
-        // ── Plus button ──────────────────────────────────────────────────
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
           sliver: SliverToBoxAdapter(
@@ -959,9 +835,11 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.add_rounded,
-                        color: const Color(0xFF975600).withOpacity(0.7),
-                        size: 20),
+                    Icon(
+                      Icons.add_rounded,
+                      color: const Color(0xFF975600).withOpacity(0.7),
+                      size: 20,
+                    ),
                     const SizedBox(width: 6),
                     Text(
                       'New Collection',
@@ -978,7 +856,6 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
           ),
         ),
 
-        // ── Ungrouped locations section ───────────────────────────────────
         if (ungrouped.isNotEmpty)
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
@@ -1023,25 +900,30 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
                       color: const Color(0xFFFFD227).withOpacity(0.2),
                       shape: BoxShape.circle,
                     ),
-                    child: const Icon(Icons.add_location_alt_outlined,
-                        size: 36, color: Color(0xFFB87000)),
+                    child: const Icon(
+                      Icons.add_location_alt_outlined,
+                      size: 36,
+                      color: Color(0xFFB87000),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const Text(
                     'No locations yet',
                     style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF3E1F00)),
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF3E1F00),
+                    ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Long-press on the map to\nadd your first check-in',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                        fontSize: 14,
-                        color: const Color(0xFF3E1F00).withOpacity(0.5),
-                        height: 1.5),
+                      fontSize: 14,
+                      color: const Color(0xFF3E1F00).withOpacity(0.5),
+                      height: 1.5,
+                    ),
                   ),
                 ],
               ),
@@ -1051,8 +933,7 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
     );
   }
 
-  Widget _proxyDecorator(
-      Widget child, int index, Animation<double> animation) {
+  Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) => Material(
@@ -1070,7 +951,6 @@ class _MyCollectionsViewState extends State<_MyCollectionsView> {
 // SHARED WIDGETS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Collection card — yellow left, white right. Used in all three views.
 class _CollectionCard extends StatelessWidget {
   final String title;
   final int count;
@@ -1109,7 +989,6 @@ class _CollectionCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // ── Yellow pill ──────────────────────────────────────────
               AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 width: 90,
@@ -1125,31 +1004,35 @@ class _CollectionCard extends StatelessWidget {
                 ),
                 child: Center(
                   child: isDropTarget
-                      ? const Icon(Icons.add_rounded,
-                          color: Color(0xFF975600), size: 28)
+                      ? const Icon(
+                          Icons.add_rounded,
+                          color: Color(0xFF975600),
+                          size: 28,
+                        )
                       : previewEmojis.isEmpty
-                          ? const Icon(Icons.folder_rounded,
-                              color: Color(0xFF975600), size: 28)
-                          : Text(
-                              previewEmojis.take(3).join(' '),
-                              style: const TextStyle(fontSize: 18),
-                              textAlign: TextAlign.center,
-                            ),
+                      ? const Icon(
+                          Icons.folder_rounded,
+                          color: Color(0xFF975600),
+                          size: 28,
+                        )
+                      : Text(
+                          previewEmojis.take(3).join(' '),
+                          style: const TextStyle(fontSize: 18),
+                          textAlign: TextAlign.center,
+                        ),
                 ),
               ),
-
-              // ── Divider ──────────────────────────────────────────────
               Container(
                 width: 3,
                 height: 70,
                 color: const Color(0xFFE05A00).withOpacity(0.4),
               ),
-
-              // ── Title + count ─────────────────────────────────────────
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1176,17 +1059,19 @@ class _CollectionCard extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // ── Right icon ────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.only(right: 14),
                 child: showDragHandle
-                    ? Icon(Icons.drag_handle_rounded,
+                    ? Icon(
+                        Icons.drag_handle_rounded,
                         color: const Color(0xFFB87000).withOpacity(0.35),
-                        size: 20)
-                    : Icon(Icons.chevron_right_rounded,
+                        size: 20,
+                      )
+                    : Icon(
+                        Icons.chevron_right_rounded,
                         color: const Color(0xFFB87000).withOpacity(0.4),
-                        size: 20),
+                        size: 20,
+                      ),
               ),
             ],
           ),
@@ -1196,11 +1081,9 @@ class _CollectionCard extends StatelessWidget {
   }
 }
 
-/// Ungrouped location card — light pink left, white right.
-/// Long-press to drag onto a collection DragTarget above.
 class _UngroupedLocationCard extends StatelessWidget {
   final CheckInLocation checkIn;
-  final String? place; // null = still loading
+  final String? place;
   final VoidCallback onTap;
 
   const _UngroupedLocationCard({
@@ -1252,7 +1135,6 @@ class _UngroupedLocationCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ── Pink pill ────────────────────────────────────────────────
           Container(
             width: 90,
             height: 70,
@@ -1277,17 +1159,14 @@ class _UngroupedLocationCard extends StatelessWidget {
               ),
             ),
           ),
-
           Container(
-              width: 3,
-              height: 70,
-              color: const Color(0xFFFFD227).withOpacity(0.6)),
-
-          // ── Name ─────────────────────────────────────────────────────
+            width: 3,
+            height: 70,
+            color: const Color(0xFFFFD227).withOpacity(0.6),
+          ),
           Expanded(
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1312,8 +1191,9 @@ class _UngroupedLocationCard extends StatelessWidget {
                           height: 11,
                           width: 80,
                           child: LinearProgressIndicator(
-                            backgroundColor:
-                                const Color(0xFFFFD6E0).withOpacity(0.4),
+                            backgroundColor: const Color(
+                              0xFFFFD6E0,
+                            ).withOpacity(0.4),
                             color: const Color(0xFFFFD6E0),
                             borderRadius: BorderRadius.circular(4),
                           ),
@@ -1331,8 +1211,6 @@ class _UngroupedLocationCard extends StatelessWidget {
               ),
             ),
           ),
-
-          // ── Drag hint ────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.only(right: 14),
             child: Icon(
@@ -1373,8 +1251,7 @@ class _CreateCollectionDialogState extends State<_CreateCollectionDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: const Color(0xFFFFFBEE),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       title: const Text(
         'New Collection',
         style: TextStyle(
@@ -1396,25 +1273,18 @@ class _CreateCollectionDialogState extends State<_CreateCollectionDialog> {
             controller: _ctrl,
             autofocus: true,
             maxLength: _maxLength,
-            inputFormatters: [
-              LengthLimitingTextInputFormatter(_maxLength),
-            ],
-            style: const TextStyle(
-              fontSize: 16,
-              color: Color(0xFF3D2000),
-            ),
+            inputFormatters: [LengthLimitingTextInputFormatter(_maxLength)],
+            style: const TextStyle(fontSize: 16, color: Color(0xFF3D2000)),
             decoration: InputDecoration(
               hintText: 'e.g. Tokyo Trip 🗼 or ❤️ Favourites',
-              hintStyle: TextStyle(
-                  fontSize: 13, color: Colors.brown[300]),
+              hintStyle: TextStyle(fontSize: 13, color: Colors.brown[300]),
               filled: true,
               fillColor: const Color(0xFFFFF3C4),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
               ),
-              counterStyle: TextStyle(
-                  fontSize: 11, color: Colors.brown[300]),
+              counterStyle: TextStyle(fontSize: 11, color: Colors.brown[300]),
             ),
             onSubmitted: (_) {
               final text = _ctrl.text.trim();
@@ -1426,8 +1296,7 @@ class _CreateCollectionDialogState extends State<_CreateCollectionDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child:
-              Text('Cancel', style: TextStyle(color: Colors.brown[400])),
+          child: Text('Cancel', style: TextStyle(color: Colors.brown[400])),
         ),
         ElevatedButton(
           onPressed: () {
@@ -1439,12 +1308,417 @@ class _CreateCollectionDialogState extends State<_CreateCollectionDialog> {
             foregroundColor: const Color(0xFF3D2000),
             elevation: 0,
             shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
+              borderRadius: BorderRadius.circular(10),
+            ),
           ),
-          child: const Text('Create',
-              style: TextStyle(fontWeight: FontWeight.bold)),
+          child: const Text(
+            'Create',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FROM FRIENDS VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _FromFriendsView extends StatefulWidget {
+  const _FromFriendsView();
+
+  @override
+  State<_FromFriendsView> createState() => _FromFriendsViewState();
+}
+
+class _FromFriendsViewState extends State<_FromFriendsView> {
+  List<NoticeboardPost> _imported = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final items = await NoticeboardService.fetchImported();
+    if (mounted)
+      setState(() {
+        _imported = items;
+        _loading = false;
+      });
+  }
+
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFFD227)),
+      );
+    }
+
+    if (_imported.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFD227).withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.download_outlined,
+                size: 36,
+                color: Color(0xFFB87000),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'No imported locations yet',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF3E1F00),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Import locations from the\nnoticeboard on the World screen.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: const Color(0xFF3E1F00).withOpacity(0.5),
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      color: const Color(0xFFFFD227),
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+        itemCount: _imported.length,
+        itemBuilder: (context, index) {
+          final post = _imported[index];
+          return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 5),
+              child: GestureDetector(
+                onTap: () => showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => _FromFriendsDetailSheet(post: post),
+                ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFB87000).withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  // ── Emoji pill ────────────────────────────────────
+                  Container(
+                    width: 90,
+                    height: 70,
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFD227),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        post.emoji,
+                        style: const TextStyle(fontSize: 26),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 3,
+                    height: 70,
+                    color: const Color(0xFFFFD227).withOpacity(0.6),
+                  ),
+                  // ── Content ───────────────────────────────────────
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            post.locationName?.isNotEmpty == true
+                                ? post.locationName!
+                                : post.displayLabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF3E1F00),
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            post.city?.isNotEmpty == true
+                                ? post.city!
+                                : 'Unknown location',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: const Color(0xFF3E1F00).withOpacity(0.45),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // ── Date + from badge ─────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.only(right: 14),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFE05A00).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            '@${post.username}',
+                            style: const TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFE05A00),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          _formatDate(post.sharedAt),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: const Color(0xFF3E1F00).withOpacity(0.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ));
+        },
+      ),
+    );
+  }
+}
+
+class _FromFriendsDetailSheet extends StatelessWidget {
+  final NoticeboardPost post;
+  const _FromFriendsDetailSheet({required this.post});
+
+  String _formatDate(DateTime dt) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFFFBEE),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 36),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.brown[200],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Orange header
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE05A00),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Text(post.emoji, style: const TextStyle(fontSize: 30)),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        post.locationName?.isNotEmpty == true
+                            ? post.locationName!
+                            : post.displayLabel,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                          height: 1.2,
+                        ),
+                      ),
+                      if (post.labelWord?.isNotEmpty == true)
+                        Text(
+                          post.labelWord!,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.white.withOpacity(0.85),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          // City
+          if (post.city?.isNotEmpty == true) ...[
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined,
+                    size: 15, color: Color(0xFFE05A00)),
+                const SizedBox(width: 6),
+                Text(
+                  post.city!,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF3E1F00),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          // Full notes
+          if (post.details?.isNotEmpty == true) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF9C4),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                post.details!,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF3D2000),
+                  height: 1.6,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          // Username + date
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD227).withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  '@${post.username}',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF975600),
+                  ),
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _formatDate(post.sharedAt),
+                style: TextStyle(fontSize: 11, color: Colors.brown.shade400),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Container(height: 1, color: const Color(0xFFFFD227).withOpacity(0.4)),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.brown[400],
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text('Close', style: TextStyle(fontSize: 15)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1458,17 +1732,17 @@ PageRouteBuilder<T> _slideRightRoute<T>(Widget page) {
       const begin = Offset(1.0, 0.0);
       const end = Offset.zero;
       const curve = Curves.easeInOutCubic;
-      final tween =
-          Tween(begin: begin, end: end).chain(CurveTween(curve: curve));
-      final secondaryTween =
-          Tween(begin: Offset.zero, end: const Offset(-0.3, 0.0))
-              .chain(CurveTween(curve: curve));
+      final tween = Tween(
+        begin: begin,
+        end: end,
+      ).chain(CurveTween(curve: curve));
+      final secondaryTween = Tween(
+        begin: Offset.zero,
+        end: const Offset(-0.3, 0.0),
+      ).chain(CurveTween(curve: curve));
       return SlideTransition(
         position: secondaryAnimation.drive(secondaryTween),
-        child: SlideTransition(
-          position: animation.drive(tween),
-          child: child,
-        ),
+        child: SlideTransition(position: animation.drive(tween), child: child),
       );
     },
     transitionDuration: const Duration(milliseconds: 320),

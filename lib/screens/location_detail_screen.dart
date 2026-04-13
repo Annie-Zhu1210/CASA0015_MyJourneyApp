@@ -1,11 +1,10 @@
-// lib/screens/location_detail_screen.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import '../models/checkin_location.dart';
 import '../services/checkin_database.dart';
+import '../services/share_service.dart';
 import '../widgets/checkin/checkin_editor.dart';
 
 LatLng _latLngFromCheckin(CheckInLocation c) => LatLng(c.latitude, c.longitude);
@@ -29,11 +28,10 @@ class LocationDetailScreen extends StatefulWidget {
 }
 
 class _LocationDetailScreenState extends State<LocationDetailScreen> {
-  // We keep a local mutable copy so edits reflect immediately on this screen
-  // without needing to pop and re-open.
   late CheckInLocation _checkIn;
   String _place = '';
   List<String> _resolvedPaths = [];
+  bool _isSharing = false;
 
   @override
   void initState() {
@@ -44,8 +42,9 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   }
 
   Future<void> _resolvePaths() async {
-    final resolved =
-        await CheckInDatabase.resolveMediaPaths(_checkIn.mediaPaths);
+    final resolved = await CheckInDatabase.resolveMediaPaths(
+      _checkIn.mediaPaths,
+    );
     if (mounted) setState(() => _resolvedPaths = resolved);
   }
 
@@ -64,12 +63,23 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         ];
         if (mounted) setState(() => _place = parts.join(', '));
       }
-    } catch (_) {
-      // leave _place empty — coordinates line still shows
-    }
+    } catch (_) {}
   }
 
-  // ── Delete ───────────────────────────────────────────────────────────────
+  // ── Share ─────────────────────────────────────────────────────────────────
+
+  Future<void> _share() async {
+    if (_isSharing) return;
+    setState(() => _isSharing = true);
+    await ShareService.showShareOptions(
+      context: context,
+      checkIn: _checkIn,
+      resolvedPhotoPaths: _resolvedPaths,
+    );
+    if (mounted) setState(() => _isSharing = false);
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
 
   Future<void> _confirmDelete() async {
     final confirmed = await showDialog<bool>(
@@ -88,7 +98,10 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         content: RichText(
           text: TextSpan(
             style: const TextStyle(
-                color: Color(0xFF5C3A00), fontSize: 14, height: 1.5),
+              color: Color(0xFF5C3A00),
+              fontSize: 14,
+              height: 1.5,
+            ),
             children: [
               const TextSpan(text: 'Are you sure you want to delete '),
               TextSpan(
@@ -111,7 +124,8 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             child: const Text('Delete'),
           ),
@@ -126,7 +140,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     }
   }
 
-  // ── Edit ─────────────────────────────────────────────────────────────────
+  // ── Edit ──────────────────────────────────────────────────────────────────
 
   Future<void> _openEditor() async {
     await showDialog(
@@ -137,13 +151,12 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
         existing: _checkIn,
         onSaved: () async {
           final updated = await CheckInDatabase.loadAll();
-          final fresh =
-              updated.where((c) => c.id == _checkIn.id).firstOrNull;
+          final fresh = updated.where((c) => c.id == _checkIn.id).firstOrNull;
           if (fresh != null && mounted) {
             setState(() => _checkIn = fresh);
-            // Re-resolve paths for any newly added photos
-            final resolved =
-                await CheckInDatabase.resolveMediaPaths(fresh.mediaPaths);
+            final resolved = await CheckInDatabase.resolveMediaPaths(
+              fresh.mediaPaths,
+            );
             if (mounted) setState(() => _resolvedPaths = resolved);
           }
           widget.onChanged();
@@ -152,17 +165,27 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     );
   }
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
   String _formatDate(DateTime dt) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -171,25 +194,17 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // ── Header bar ───────────────────────────────────────────────
             _buildHeader(),
-
-            // ── Scrollable body ──────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 8, 20, 40),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Label pill
                     _buildLabelPill(),
                     const SizedBox(height: 20),
-
-                    // Coordinates
                     _buildCoordRow(),
                     const SizedBox(height: 20),
-
-                    // Notes
                     if (_checkIn.details != null &&
                         _checkIn.details!.isNotEmpty) ...[
                       _sectionLabel('Notes'),
@@ -197,25 +212,20 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
                       _buildNotesCard(),
                       const SizedBox(height: 20),
                     ],
-
-                    // Photos
                     if (_checkIn.mediaPaths.isNotEmpty) ...[
                       _sectionLabel('Photos'),
                       const SizedBox(height: 8),
                       _buildPhotoStrip(),
                       const SizedBox(height: 20),
                     ],
-
-                    // Timestamp
                     Text(
                       'Saved on ${_formatDate(_checkIn.createdAt)}',
                       style: TextStyle(
-                          fontSize: 12,
-                          color: const Color(0xFF3E1F00).withOpacity(0.4)),
+                        fontSize: 12,
+                        color: const Color(0xFF3E1F00).withOpacity(0.4),
+                      ),
                     ),
                     const SizedBox(height: 28),
-
-                    // Action buttons
                     _buildActionButtons(),
                   ],
                 ),
@@ -235,17 +245,17 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
       padding: const EdgeInsets.fromLTRB(4, 10, 16, 10),
       child: Row(
         children: [
-          // Back button
           IconButton(
             onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Color(0xFF975600), size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: Color(0xFF975600),
+              size: 20,
+            ),
             tooltip: 'Back',
           ),
-          // Emoji
           Text(_checkIn.emoji, style: const TextStyle(fontSize: 28)),
           const SizedBox(width: 10),
-          // Name
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,8 +291,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
     return Wrap(
       children: [
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
             color: const Color(0xFFFFD227),
             borderRadius: BorderRadius.circular(20),
@@ -306,8 +315,11 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: Icon(Icons.location_on_outlined,
-              size: 16, color: const Color(0xFFB87000).withOpacity(0.7)),
+          child: Icon(
+            Icons.location_on_outlined,
+            size: 16,
+            color: const Color(0xFFB87000).withOpacity(0.7),
+          ),
         ),
         const SizedBox(width: 5),
         Column(
@@ -390,14 +402,15 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: file.existsSync()
-                  ? Image.file(file,
-                      width: 110, height: 110, fit: BoxFit.cover)
+                  ? Image.file(file, width: 110, height: 110, fit: BoxFit.cover)
                   : Container(
                       width: 110,
                       height: 110,
                       color: const Color(0xFFFFF3C4),
-                      child: const Icon(Icons.broken_image,
-                          color: Color(0xFFBBA060)),
+                      child: const Icon(
+                        Icons.broken_image,
+                        color: Color(0xFFBBA060),
+                      ),
                     ),
             ),
           );
@@ -409,7 +422,7 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
   Widget _buildActionButtons() {
     return Row(
       children: [
-        // Delete
+        // ── Delete ───────────────────────────────────────────────────
         Expanded(
           child: OutlinedButton.icon(
             onPressed: _confirmDelete,
@@ -419,15 +432,41 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               foregroundColor: Colors.red[400],
               side: BorderSide(color: Colors.red[200]!, width: 1.5),
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ),
-        const SizedBox(width: 12),
-        // Edit
+        const SizedBox(width: 10),
+        // ── Share ────────────────────────────────────────────────────
         Expanded(
-          flex: 2,
+          child: OutlinedButton.icon(
+            onPressed: _isSharing ? null : _share,
+            icon: _isSharing
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF975600),
+                    ),
+                  )
+                : const Icon(Icons.ios_share_rounded, size: 18),
+            label: Text(_isSharing ? 'Sharing…' : 'Share'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF975600),
+              side: const BorderSide(color: Color(0xFFFFD227), width: 1.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        // ── Edit ─────────────────────────────────────────────────────
+        Expanded(
           child: ElevatedButton.icon(
             onPressed: _openEditor,
             icon: const Icon(Icons.edit_rounded, size: 18),
@@ -437,7 +476,8 @@ class _LocationDetailScreenState extends State<LocationDetailScreen> {
               foregroundColor: const Color(0xFF3D2000),
               elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+                borderRadius: BorderRadius.circular(14),
+              ),
               padding: const EdgeInsets.symmetric(vertical: 14),
             ),
           ),
@@ -471,8 +511,7 @@ class _FullScreenImageViewer extends StatefulWidget {
   });
 
   @override
-  State<_FullScreenImageViewer> createState() =>
-      _FullScreenImageViewerState();
+  State<_FullScreenImageViewer> createState() => _FullScreenImageViewerState();
 }
 
 class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
@@ -517,10 +556,7 @@ class _FullScreenImageViewerState extends State<_FullScreenImageViewer> {
           minScale: 0.5,
           maxScale: 4.0,
           child: Center(
-            child: Image.file(
-              File(widget.paths[i]),
-              fit: BoxFit.contain,
-            ),
+            child: Image.file(File(widget.paths[i]), fit: BoxFit.contain),
           ),
         ),
       ),

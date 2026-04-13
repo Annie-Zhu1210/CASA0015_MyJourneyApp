@@ -1,5 +1,3 @@
-// lib/screens/custom_collection_detail_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:geocoding/geocoding.dart';
 import '../models/checkin_location.dart';
@@ -8,8 +6,6 @@ import '../services/collections_database.dart';
 import 'location_detail_screen.dart';
 
 /// Detail screen for a user-created custom collection.
-/// Geocodes all locations once at screen level — place strings never change
-/// when toggling between reorder/remove modes.
 class CustomCollectionDetailScreen extends StatefulWidget {
   final CustomCollection collection;
   final List<CheckInLocation> locations;
@@ -35,8 +31,6 @@ class _CustomCollectionDetailScreenState
   late CustomCollection _collection;
   bool _removeMode = false;
   final Set<String> _selectedForRemoval = {};
-
-  /// Place strings keyed by location ID. Populated once, never recomputed.
   final Map<String, String> _places = {};
 
   @override
@@ -52,7 +46,7 @@ class _CustomCollectionDetailScreenState
   Future<void> _geocodeAll(List<CheckInLocation> locs) async {
     for (final loc in locs) {
       if (!mounted) return;
-      if (_places.containsKey(loc.id)) continue; // already resolved
+      if (_places.containsKey(loc.id)) continue;
       final place = await _resolvePlace(loc);
       if (mounted) setState(() => _places[loc.id] = place);
     }
@@ -77,6 +71,7 @@ class _CustomCollectionDetailScreenState
     return '${loc.latitude.toStringAsFixed(4)}, '
         '${loc.longitude.toStringAsFixed(4)}';
   }
+
 
   // ── Reorder ───────────────────────────────────────────────────────────────
 
@@ -105,7 +100,6 @@ class _CustomCollectionDetailScreenState
       return;
     }
 
-    // Pre-geocode ungrouped locations for the sheet
     await _geocodeAll(widget.ungroupedLocations);
 
     final selected = await showModalBottomSheet<List<String>>(
@@ -246,12 +240,11 @@ class _CustomCollectionDetailScreenState
       child: Row(
         children: [
           IconButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, _locations),
             icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                color: Color(0xFF975600), size: 20),
+            color: Color(0xFF975600), size: 20),
             tooltip: 'Back',
           ),
-          const SizedBox(width: 4),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -277,13 +270,6 @@ class _CustomCollectionDetailScreenState
               ],
             ),
           ),
-          if (!_removeMode)
-            IconButton(
-              onPressed: _openAddSheet,
-              icon: const Icon(Icons.add_rounded,
-                  color: Color(0xFF975600), size: 24),
-              tooltip: 'Add locations',
-            ),
         ],
       ),
     );
@@ -318,7 +304,7 @@ class _CustomCollectionDetailScreenState
         return _LocationCard(
           key: ValueKey(loc.id),
           checkIn: loc,
-          place: _places[loc.id], // same map — no re-geocoding
+          place: _places[loc.id],
           onTap: () => _toggleSelect(loc.id),
           isSelected: _selectedForRemoval.contains(loc.id),
           showDragHandle: false,
@@ -437,7 +423,8 @@ class _CustomCollectionDetailScreenState
     );
   }
 
-  Widget _proxyDecorator(Widget child, int index, Animation<double> animation) {
+  Widget _proxyDecorator(
+      Widget child, int index, Animation<double> animation) {
     return AnimatedBuilder(
       animation: animation,
       builder: (context, child) => Material(
@@ -451,7 +438,7 @@ class _CustomCollectionDetailScreenState
   }
 }
 
-// ── Add locations bottom sheet ─────────────────────────────────────────────────
+// ── Add locations bottom sheet ────────────────────────────────────────────────
 
 class _AddLocationsSheet extends StatefulWidget {
   final List<CheckInLocation> ungrouped;
@@ -613,7 +600,8 @@ class _AddLocationsSheetState extends State<_AddLocationsSheet> {
                           Padding(
                             padding: const EdgeInsets.only(right: 14),
                             child: Icon(Icons.circle_outlined,
-                                color: const Color(0xFF3E1F00).withOpacity(0.2),
+                                color:
+                                    const Color(0xFF3E1F00).withOpacity(0.2),
                                 size: 20),
                           ),
                       ],
@@ -643,8 +631,8 @@ class _AddLocationsSheetState extends State<_AddLocationsSheet> {
                 _selected.isEmpty
                     ? 'Add to Collection'
                     : 'Add ${_selected.length} location${_selected.length == 1 ? '' : 's'}',
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, fontSize: 15),
               ),
             ),
           ),
@@ -655,11 +643,11 @@ class _AddLocationsSheetState extends State<_AddLocationsSheet> {
   }
 }
 
-// ── Location card — stateless, receives pre-resolved place string ─────────────
+// ── Location card ─────────────────────────────────────────────────────────────
 
 class _LocationCard extends StatelessWidget {
   final CheckInLocation checkIn;
-  final String? place; // null = still loading
+  final String? place;
   final VoidCallback onTap;
   final bool isSelected;
   final bool showDragHandle;
@@ -770,7 +758,8 @@ class _LocationCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: const Color(0xFF3E1F00).withOpacity(0.45),
+                                color: const Color(0xFF3E1F00)
+                                    .withOpacity(0.45),
                               ),
                             ),
                     ],
@@ -784,7 +773,8 @@ class _LocationCard extends StatelessWidget {
                         color: Color(0xFF975600), size: 20)
                     : showDragHandle
                         ? Icon(Icons.drag_handle_rounded,
-                            color: const Color(0xFFB87000).withOpacity(0.35),
+                            color:
+                                const Color(0xFFB87000).withOpacity(0.35),
                             size: 20)
                         : Icon(Icons.remove_circle_outline_rounded,
                             color: Colors.red[300], size: 20),

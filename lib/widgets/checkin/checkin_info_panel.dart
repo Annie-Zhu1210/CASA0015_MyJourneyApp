@@ -1,15 +1,15 @@
-// lib/widgets/checkin/checkin_info_panel.dart
-
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart' show LatLng;
 import '../../models/checkin_location.dart';
 import '../../services/checkin_database.dart';
+import '../../services/share_service.dart';
 import 'checkin_editor.dart';
 
 LatLng _latLngFromCheckin(CheckInLocation c) => LatLng(c.latitude, c.longitude);
 
-// ── Full-screen swipeable image viewer (shared with editor) ──────────────────
+// ── Full-screen swipeable image viewer ───────────────────────────────────────
+
 class _InfoImageViewerScreen extends StatefulWidget {
   final List<String> paths;
   final int initialIndex;
@@ -20,8 +20,7 @@ class _InfoImageViewerScreen extends StatefulWidget {
   });
 
   @override
-  State<_InfoImageViewerScreen> createState() =>
-      _InfoImageViewerScreenState();
+  State<_InfoImageViewerScreen> createState() => _InfoImageViewerScreenState();
 }
 
 class _InfoImageViewerScreenState extends State<_InfoImageViewerScreen> {
@@ -66,10 +65,7 @@ class _InfoImageViewerScreenState extends State<_InfoImageViewerScreen> {
           minScale: 0.5,
           maxScale: 4.0,
           child: Center(
-            child: Image.file(
-              File(widget.paths[i]),
-              fit: BoxFit.contain,
-            ),
+            child: Image.file(File(widget.paths[i]), fit: BoxFit.contain),
           ),
         ),
       ),
@@ -78,7 +74,7 @@ class _InfoImageViewerScreenState extends State<_InfoImageViewerScreen> {
 }
 
 /// Floating panel shown when the user taps a saved check-in marker.
-/// Shows all saved info with Edit, Delete, and Close options.
+/// Shows all saved info with Share, Edit, Delete, and Close options.
 class CheckInInfoPanel extends StatefulWidget {
   final CheckInLocation checkin;
   final VoidCallback onClose;
@@ -99,6 +95,7 @@ class CheckInInfoPanel extends StatefulWidget {
 
 class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
   List<String> _resolvedPaths = [];
+  bool _isSharing = false;
 
   @override
   void initState() {
@@ -107,29 +104,48 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
   }
 
   Future<void> _resolvePaths() async {
-    final resolved =
-        await CheckInDatabase.resolveMediaPaths(widget.checkin.mediaPaths);
+    final resolved = await CheckInDatabase.resolveMediaPaths(
+      widget.checkin.mediaPaths,
+    );
     if (mounted) setState(() => _resolvedPaths = resolved);
   }
+
+  // ── Share ─────────────────────────────────────────────────────────────────
+
+  Future<void> _share() async {
+    if (_isSharing) return;
+    setState(() => _isSharing = true);
+    await ShareService.showShareOptions(
+      context: context,
+      checkIn: widget.checkin,
+      resolvedPhotoPaths: _resolvedPaths,
+    );
+    if (mounted) setState(() => _isSharing = false);
+  }
+
+  // ── Delete ────────────────────────────────────────────────────────────────
 
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFFFFFBEE),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text(
           'Delete Check-In?',
           style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF3D2000)),
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF3D2000),
+          ),
         ),
         content: RichText(
           text: TextSpan(
             style: const TextStyle(
-                color: Color(0xFF5C3A00), fontSize: 14, height: 1.5),
+              color: Color(0xFF5C3A00),
+              fontSize: 14,
+              height: 1.5,
+            ),
             children: [
               const TextSpan(text: 'Are you sure you want to delete '),
               TextSpan(
@@ -143,8 +159,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child:
-                Text('Cancel', style: TextStyle(color: Colors.brown[400])),
+            child: Text('Cancel', style: TextStyle(color: Colors.brown[400])),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -153,7 +168,8 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
               foregroundColor: Colors.white,
               elevation: 0,
               shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
             child: const Text('Delete'),
           ),
@@ -167,15 +183,14 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
     }
   }
 
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final checkin = widget.checkin;
     final screenHeight = MediaQuery.of(context).size.height;
     final screenWidth = MediaQuery.of(context).size.width;
 
-    // Issue 3: GestureDetector absorbs taps so clicking outside the card
-    // does NOT close the window.
-    // Issue 4: Align(center) ensures true vertical centring.
     return GestureDetector(
       onTap: () {}, // absorb background taps
       child: Align(
@@ -190,7 +205,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
+                  color: Colors.black.withOpacity(0.15),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
@@ -201,14 +216,16 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ── Header ──────────────────────────────────────────────
+                  // ── Header ─────────────────────────────────────────────
                   Container(
                     padding: const EdgeInsets.fromLTRB(20, 18, 12, 14),
                     color: const Color(0xFFFFEFA0),
                     child: Row(
                       children: [
-                        Text(checkin.emoji,
-                            style: const TextStyle(fontSize: 26)),
+                        Text(
+                          checkin.emoji,
+                          style: const TextStyle(fontSize: 26),
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: Column(
@@ -228,30 +245,33 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                 Text(
                                   checkin.labelWord!,
                                   style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.brown[400]),
+                                    fontSize: 12,
+                                    color: Colors.brown[400],
+                                  ),
                                 ),
                             ],
                           ),
                         ),
                         IconButton(
                           onPressed: widget.onClose,
-                          icon: const Icon(Icons.close_rounded,
-                              color: Color(0xFF975600)),
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xFF975600),
+                          ),
                           tooltip: 'Close',
                         ),
                       ],
                     ),
                   ),
 
-                  // ── Body ────────────────────────────────────────────────
+                  // ── Body ───────────────────────────────────────────────
                   Flexible(
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Details — issue 5: removed 🗒️ emoji from label
+                          // Notes
                           if (checkin.details != null &&
                               checkin.details!.isNotEmpty) ...[
                             const _SectionLabel(label: 'Notes'),
@@ -264,8 +284,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                 borderRadius: BorderRadius.circular(12),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black
-                                        .withValues(alpha: 0.06),
+                                    color: Colors.black.withOpacity(0.06),
                                     blurRadius: 6,
                                     offset: const Offset(2, 3),
                                   ),
@@ -283,7 +302,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                             const SizedBox(height: 14),
                           ],
 
-                          // Media
+                          // Photos
                           if (checkin.mediaPaths.isNotEmpty) ...[
                             const _SectionLabel(label: 'Photos'),
                             const SizedBox(height: 8),
@@ -295,8 +314,6 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                 separatorBuilder: (_, __) =>
                                     const SizedBox(width: 8),
                                 itemBuilder: (ctx, i) {
-                                  // Use resolved path if available, else fall
-                                  // back to stored path while resolving
                                   final path = i < _resolvedPaths.length
                                       ? _resolvedPaths[i]
                                       : checkin.mediaPaths[i];
@@ -305,8 +322,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                     onTap: () => Navigator.push(
                                       ctx,
                                       MaterialPageRoute(
-                                        builder: (_) =>
-                                            _InfoImageViewerScreen(
+                                        builder: (_) => _InfoImageViewerScreen(
                                           paths: _resolvedPaths.isNotEmpty
                                               ? _resolvedPaths
                                               : checkin.mediaPaths,
@@ -315,8 +331,7 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                       ),
                                     ),
                                     child: ClipRRect(
-                                      borderRadius:
-                                          BorderRadius.circular(10),
+                                      borderRadius: BorderRadius.circular(10),
                                       child: file.existsSync()
                                           ? Image.file(
                                               file,
@@ -327,12 +342,11 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                           : Container(
                                               width: 100,
                                               height: 100,
-                                              color: const Color(
-                                                  0xFFFFF3C4),
+                                              color: const Color(0xFFFFF3C4),
                                               child: const Icon(
-                                                  Icons.broken_image,
-                                                  color: Color(
-                                                      0xFFBBA060)),
+                                                Icons.broken_image,
+                                                color: Color(0xFFBBA060),
+                                              ),
                                             ),
                                     ),
                                   );
@@ -346,37 +360,76 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                           Text(
                             'Saved on ${_formatDate(checkin.createdAt)}',
                             style: TextStyle(
-                                fontSize: 11, color: Colors.brown[300]),
+                              fontSize: 11,
+                              color: Colors.brown[300],
+                            ),
                           ),
                           const SizedBox(height: 16),
 
-                          // Action buttons
+                          // ── Action buttons ────────────────────────────
                           Row(
                             children: [
+                              // Delete
                               Expanded(
                                 child: OutlinedButton.icon(
-                                  onPressed: () =>
-                                      _confirmDelete(context),
+                                  onPressed: () => _confirmDelete(context),
                                   icon: const Icon(
-                                      Icons.delete_outline_rounded,
-                                      size: 18),
+                                    Icons.delete_outline_rounded,
+                                    size: 18,
+                                  ),
                                   label: const Text('Delete'),
                                   style: OutlinedButton.styleFrom(
                                     foregroundColor: Colors.red[400],
                                     side: BorderSide(
-                                        color: Colors.red[200]!,
-                                        width: 1.5),
+                                      color: Colors.red[200]!,
+                                      width: 1.5,
+                                    ),
                                     shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
+                                      vertical: 12,
+                                    ),
                                   ),
                                 ),
                               ),
-                              const SizedBox(width: 10),
+                              const SizedBox(width: 8),
+                              // Share
                               Expanded(
-                                flex: 2,
+                                child: OutlinedButton.icon(
+                                  onPressed: _isSharing ? null : _share,
+                                  icon: _isSharing
+                                      ? const SizedBox(
+                                          width: 16,
+                                          height: 16,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Color(0xFF975600),
+                                          ),
+                                        )
+                                      : const Icon(
+                                          Icons.ios_share_rounded,
+                                          size: 18,
+                                        ),
+                                  label: Text(_isSharing ? '…' : 'Share'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF975600),
+                                    side: const BorderSide(
+                                      color: Color(0xFFFFD227),
+                                      width: 1.5,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              // Edit
+                              Expanded(
                                 child: ElevatedButton.icon(
                                   onPressed: () {
                                     widget.onClose();
@@ -384,27 +437,29 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
                                       context: context,
                                       barrierDismissible: false,
                                       builder: (_) => CheckInEditor(
-                                        position:
-                                            _latLngFromCheckin(widget.checkin),
+                                        position: _latLngFromCheckin(
+                                          widget.checkin,
+                                        ),
                                         existing: widget.checkin,
                                         onSaved: widget.onEdited,
                                       ),
                                     );
                                   },
-                                  icon: const Icon(Icons.edit_rounded,
-                                      size: 18),
+                                  icon: const Icon(
+                                    Icons.edit_rounded,
+                                    size: 18,
+                                  ),
                                   label: const Text('Edit'),
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor:
-                                        const Color(0xFFFFD24B),
-                                    foregroundColor:
-                                        const Color(0xFF3D2000),
+                                    backgroundColor: const Color(0xFFFFD24B),
+                                    foregroundColor: const Color(0xFF3D2000),
                                     elevation: 0,
                                     shape: RoundedRectangleBorder(
-                                        borderRadius:
-                                            BorderRadius.circular(12)),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
                                     padding: const EdgeInsets.symmetric(
-                                        vertical: 12),
+                                      vertical: 12,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -424,9 +479,19 @@ class _CheckInInfoPanelState extends State<CheckInInfoPanel> {
   }
 
   String _formatDate(DateTime dt) {
-    final months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${dt.day} ${months[dt.month - 1]} ${dt.year}';
   }
