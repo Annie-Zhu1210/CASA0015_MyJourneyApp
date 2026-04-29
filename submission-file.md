@@ -1,9 +1,9 @@
 <!---
 
 ---
-title: "CASA0017: Web Architecture Final Assessment"
-author: "Steven Gray"
-date: "10 Dec 2021"
+title: "CASA0015: Mobile Systems & Interactions Final Assessment"
+author: "Annie Zhu"
+date: "29 Apr 2026"
 ---
 
 -->
@@ -20,8 +20,8 @@ Upload this PDF into Moodle for submission including a copy of your presentation
 
 ## Link to GitHub Repository
 
-Flutter Application Name - MY APPLICATION NAME
-GitHub Repository - [https://github.com/ucl-casa-ce/casa0015-mobile-assessment](https://github.com/ucl-casa-ce/casa0015-mobile-assessment)
+- Flutter Application Name - My Journey
+- GitHub Repository - [https://github.com/ucl-casa-ce/casa0015-mobile-assessment](https://github.com/ucl-casa-ce/casa0015-mobile-assessment)
 
 ## Introduction to Application
 
@@ -38,9 +38,9 @@ for citation - [https://www.scribbr.co.uk/referencing/harvard-website-reference/
 
 ## Declaration of Authorship
 
-We, AUTHORS NAME HERE, confirm that the work presented in this assessment is my own. Where information has been derived from other sources, I confirm that this has been indicated in the work.
+I, Annie Zhu, confirm that the work presented in this assessment is my own. Where information has been derived from other sources, I confirm that this has been indicated in the work.
 
 
 Digitally Sign with Your name Here
 
-ASSESSMENT DATE
+29/04/2026
