@@ -17,8 +17,13 @@ date: "29 Apr 2026"
 
 ## Introduction to Application
 
-A brief 200 word explanation of your application and it's use.  Below create a Bibliography to code, tutorial, or plugins you've used in the project. Use this guide
-for citation - [https://www.scribbr.co.uk/referencing/harvard-website-reference/](https://www.scribbr.co.uk/referencing/harvard-website-reference/)
+My Journey is a map-based mobile application that transforms how people record and share their experiences of the physical world. At its heart, it sits at the intersection of a personal diary and a community discovery platform. My Journey is a connected environment tool that turns real-world movement into a living and evolving memoir.
+
+Using GPS and the device accelerometer, the app continuously tracks where users have been, revealing explored areas through a fog-of-war overlay that makes every journey feel like an unfolding story. Users can check in at meaningful places, such as restaurants, landmarks, hidden gems, attaching labels, photos, notes, and real-time weather data captured at the moment of arrival, building a rich, contextual record of their lives.
+
+Beyond personal memory, My Journey connects people. Locations can be shared to social media as branded cards or posted to a public community noticeboard, where others can discover and import them, turning private memories into shared recommendations. A friends leaderboard adds a playful layer of competition, encouraging users to keep exploring.
+
+The app integrates Google Maps, OpenWeatherMap, Firebase Authentication, and Firestore, with on-device SQLite for offline resilience, demonstrating a seamlessly connected experience that bridges the physical and digital worlds.
 
 ## Bibliography
 
