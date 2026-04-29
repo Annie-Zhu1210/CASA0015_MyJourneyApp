@@ -246,7 +246,19 @@ MSc Connected Environments, University College London
 GitHub: [@Annie-Zhu1210](https://github.com/Annie-Zhu1210)
 
 ---
+## Use of Generative AI
 
+This project was developed under **UCL Category 2** AI use guidelines, where Generative AI tools are permitted in an assistive role.
+
+[Claude](https://claude.ai) (Anthropic) was used throughout development as a coding assistant to help implement, debug, and refine Flutter/Dart code. All code was reviewed, tested, and integrated by the author on a physical device. The overall app architecture, design decisions, and feature direction were determined by the author.
+
+Specific areas where AI assistance was used include:
+- Implementing complex UI widgets and custom painters (exploration path overlay, animated bottom navigation bar, avatar marker builder)
+- Debugging platform-specific iOS issues (photo persistence, Firebase Auth race conditions, geocoding API integration)
+- Structuring Firestore data models for friends, noticeboard, and imported locations
+- Writing service classes for shake detection, weather fetching, and share card rendering
+
+---
 ## 📄 Licence
 
 This project was developed as individual coursework for CASA0015: Mobile Systems & Interactions at University College London (UCL). All rights reserved.
