@@ -50,6 +50,6 @@ The app integrates Google Maps, OpenWeatherMap, Firebase Authentication, and Fir
 I, Annie Zhu, confirm that the work presented in this assessment is my own. Where information has been derived from other sources, I confirm that this has been indicated in the work.
 
 
-Digitally Sign with Your name Here
+Annie Zhu
 
 29/04/2026
