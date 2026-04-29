@@ -41,6 +41,8 @@ app.*.map.json
 
 # API keys
 ios/Runner/Secrets.swift
+android/app/src/main/AndroidManifest.xml
+lib/constants/secrets.dart
 
 
 # Auto-generated files
