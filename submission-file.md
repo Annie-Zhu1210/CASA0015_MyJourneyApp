@@ -8,20 +8,12 @@ date: "29 Apr 2026"
 
 -->
 
-# Submission Guide
-
-You will need to edit this file, create a PDF using the instructions below, from this file.   Sign it digitally and upload to Moodle
-
-## How to create a PDF from Markdown
-When finished you should export to PDF using VSCode and MarkdownPDF Extension. Make sure you select no headers and no footers in the
-extension preferences before exporting to PDF.   
-
-Upload this PDF into Moodle for submission including a copy of your presentation slides.
+# My Journey
 
 ## Link to GitHub Repository
 
 - Flutter Application Name - My Journey
-- GitHub Repository - [https://github.com/ucl-casa-ce/casa0015-mobile-assessment](https://github.com/ucl-casa-ce/casa0015-mobile-assessment)
+- GitHub Repository - [https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp](https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp)
 
 ## Introduction to Application
 
