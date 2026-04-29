@@ -121,7 +121,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
       confirmLabel: 'Delete',
       isDestructive: true,
     );
-    if (confirm == true) await AuthService.deleteAccount();
+    if (confirm != true) return;
+
+    final error = await AuthService.deleteAccount();
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error), backgroundColor: Colors.red[400]),
+      );
+    }
   }
 
   Future<bool?> _showConfirmDialog({
@@ -491,8 +498,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GestureDetector(
             onTap: _logout,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -524,17 +530,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           GestureDetector(
             onTap: _deleteAccount,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(20)),
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(20),
+                ),
               ),
               child: Row(
                 children: [
-                  const Icon(CupertinoIcons.trash,
-                      size: 20, color: Colors.red),
+                  const Icon(CupertinoIcons.trash, size: 20, color: Colors.red),
                   const SizedBox(width: 14),
                   const Text(
                     'Delete Account',
@@ -579,7 +584,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 }
-
 
 class _UsernameSheet extends StatefulWidget {
   final String currentUsername;
@@ -653,10 +657,7 @@ class _UsernameSheetState extends State<_UsernameSheet> {
                 controller: _controller,
                 autofocus: true,
                 maxLength: 20,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF2C1A00),
-                ),
+                style: const TextStyle(fontSize: 16, color: Color(0xFF2C1A00)),
                 decoration: InputDecoration(
                   prefixText: '@',
                   prefixStyle: const TextStyle(
@@ -711,10 +712,7 @@ class _UsernameSheetState extends State<_UsernameSheet> {
                 },
                 child: const Text(
                   'Save Username',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
                 ),
               ),
             ),

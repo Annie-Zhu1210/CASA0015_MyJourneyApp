@@ -1,13 +1,18 @@
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/checkin_location.dart';
 
 class CheckInDatabase {
   static Database? _db;
   static const String _tableName = 'checkins';
-  // ↑ Bumped from 1 → 2 to trigger onUpgrade and add the weather columns.
-  static const int _version = 2;
+  // Bumped to 3: adds user_id column and wipes legacy unscoped data.
+  static const int _version = 3;
+
+  // Returns the uid of the currently signed-in user.
+  // Throws if called while no user is signed in (shouldn't happen in normal flow).
+  static String get _uid => FirebaseAuth.instance.currentUser!.uid;
 
   static Future<Database> get database async {
     if (_db != null) return _db!;
@@ -26,6 +31,7 @@ class CheckInDatabase {
         await db.execute('''
           CREATE TABLE $_tableName (
             id                TEXT PRIMARY KEY,
+            user_id           TEXT NOT NULL,
             latitude          REAL NOT NULL,
             longitude         REAL NOT NULL,
             emoji             TEXT NOT NULL,
@@ -42,12 +48,18 @@ class CheckInDatabase {
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          // Add weather columns to existing databases — existing rows will
-          // have NULL for both columns, which is handled gracefully.
           await db.execute(
               'ALTER TABLE $_tableName ADD COLUMN weather_condition TEXT');
           await db.execute(
               'ALTER TABLE $_tableName ADD COLUMN weather_temp REAL');
+        }
+        if (oldVersion < 3) {
+          // All existing rows belong to an unknown (unscoped) user.
+          // Since the user confirmed they don't mind losing legacy data,
+          // wipe the table and add the new required column cleanly.
+          await db.execute('DELETE FROM $_tableName');
+          await db.execute(
+              'ALTER TABLE $_tableName ADD COLUMN user_id TEXT NOT NULL DEFAULT ""');
         }
       },
     );
@@ -70,16 +82,24 @@ class CheckInDatabase {
 
   static Future<void> insert(CheckInLocation checkin) async {
     final db = await database;
+    final map = checkin.toMap();
+    map['user_id'] = _uid; // stamp with current user
     await db.insert(
       _tableName,
-      checkin.toMap(),
+      map,
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
 
+  /// Returns only the check-ins that belong to the currently signed-in user.
   static Future<List<CheckInLocation>> loadAll() async {
     final db = await database;
-    final rows = await db.query(_tableName, orderBy: 'created_at DESC');
+    final rows = await db.query(
+      _tableName,
+      where: 'user_id = ?',
+      whereArgs: [_uid],
+      orderBy: 'created_at DESC',
+    );
     return rows.map(CheckInLocation.fromMap).toList();
   }
 
@@ -88,8 +108,8 @@ class CheckInDatabase {
     await db.update(
       _tableName,
       checkin.toMap(),
-      where: 'id = ?',
-      whereArgs: [checkin.id],
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [checkin.id, _uid],
     );
   }
 
@@ -97,8 +117,19 @@ class CheckInDatabase {
     final db = await database;
     await db.delete(
       _tableName,
-      where: 'id = ?',
-      whereArgs: [id],
+      where: 'id = ? AND user_id = ?',
+      whereArgs: [id, _uid],
+    );
+  }
+
+  /// Deletes ALL check-ins for the current user.
+  /// Called on account deletion so no data is left behind.
+  static Future<void> deleteAllForCurrentUser() async {
+    final db = await database;
+    await db.delete(
+      _tableName,
+      where: 'user_id = ?',
+      whereArgs: [_uid],
     );
   }
 }
