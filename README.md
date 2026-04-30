@@ -8,6 +8,10 @@ Using GPS and the device accelerometer, the app continuously tracks where users 
 
 Beyond personal memory, My Journey connects people. Locations can be shared to social media as branded cards or posted to a public community noticeboard, where others can discover and import them — turning private memories into shared recommendations. A friends leaderboard adds a playful layer of competition, encouraging users to keep exploring.
 
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/raw/main/Media/Splash%20Screen.gif" width="150">
+</div>
+
 ---
 
 ## Demo
