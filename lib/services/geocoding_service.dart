@@ -1,13 +1,12 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:geocoding/geocoding.dart' as geo;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'exploration_service.dart';
-import '../constants/secrets.dart'; // 
 
 /// Represents a place (city or country) derived from visited GPS points.
 class PlaceInfo {
-  final String name;    
-  final String countryCode; 
+  final String name;
+  final String countryCode;
   final double latitude;
   final double longitude;
 
@@ -45,10 +44,9 @@ class GeocodingService {
   static const String _citiesCacheKey = 'geocoded_cities';
   static const String _countriesCacheKey = 'geocoded_countries';
 
-  // Main public methods
+  // ── Main public methods ───────────────────────────────────────────────────
 
   /// Returns a deduplicated list of cities derived from the given visited points.
-  /// Uses cached results where available; only geocodes new points.
   static Future<List<PlaceInfo>> getCitiesFromPoints(
       List<VisitedPoint> points) async {
     return _getPlaces(points, isCity: true);
@@ -60,7 +58,7 @@ class GeocodingService {
     return _getPlaces(points, isCity: false);
   }
 
-  // Internal logic
+  // ── Internal logic ────────────────────────────────────────────────────────
 
   static Future<List<PlaceInfo>> _getPlaces(
     List<VisitedPoint> points, {
@@ -73,16 +71,20 @@ class GeocodingService {
     final Map<String, PlaceInfo> placesMap = {};
     final String? cachedJson = prefs.getString(cacheKey);
     if (cachedJson != null) {
-      final List<dynamic> list = json.decode(cachedJson);
-      for (final item in list) {
-        final place = PlaceInfo.fromJson(item as Map<String, dynamic>);
-        placesMap[place.name] = place;
+      try {
+        final List<dynamic> list = json.decode(cachedJson);
+        for (final item in list) {
+          final place = PlaceInfo.fromJson(item as Map<String, dynamic>);
+          placesMap[place.name] = place;
+        }
+      } catch (_) {
+        // Cache was malformed — start fresh
       }
     }
 
-    // Geocode a sampled subset of points (every Nth point) to avoid
-    // excessive API calls, sampling every 10th point
-    final sampledPoints = _samplePoints(points, step: 10);
+    // Sample every Nth point to avoid excessive geocoding calls.
+    // Step of 5 gives better coverage than 10 for small datasets.
+    final sampledPoints = _samplePoints(points, step: 5);
 
     for (final point in sampledPoints) {
       try {
@@ -98,12 +100,13 @@ class GeocodingService {
           );
         }
       } catch (_) {
-        // Silently skip points that fail to geocode (network issues, etc.)
+        // Silently skip points that fail to geocode
       }
     }
 
     // Persist updated cache
-    final encoded = json.encode(placesMap.values.map((p) => p.toJson()).toList());
+    final encoded =
+        json.encode(placesMap.values.map((p) => p.toJson()).toList());
     await prefs.setString(cacheKey, encoded);
 
     final result = placesMap.values.toList();
@@ -111,43 +114,41 @@ class GeocodingService {
     return result;
   }
 
-  /// Calls the Google Maps Geocoding API for a single lat/lng.
+  /// Uses the `geocoding` package (same as everywhere else in the app) to
+  /// reverse-geocode a lat/lng. No REST API key required.
   static Future<GeocodingResult> _reverseGeocode(
       double lat, double lng) async {
-    final apiKey = Secrets.geocodingApiKey;
-    final url = Uri.parse(
-      'https://maps.googleapis.com/maps/api/geocode/json'
-      '?latlng=$lat,$lng&result_type=locality|country&key=$apiKey',
+    final placemarks = await geo.placemarkFromCoordinates(
+      lat,
+      lng,
+      localeIdentifier: 'en_US',
     );
 
-    final response = await http.get(url).timeout(const Duration(seconds: 8));
-    if (response.statusCode != 200) return const GeocodingResult();
+    if (placemarks.isEmpty) return const GeocodingResult();
 
-    final data = json.decode(response.body) as Map<String, dynamic>;
-    final results = data['results'] as List<dynamic>? ?? [];
-    if (results.isEmpty) return const GeocodingResult();
+    final p = placemarks.first;
 
-    String? city;
-    String? country;
-    String? countryCode;
+    final city = p.locality?.isNotEmpty == true
+        ? p.locality
+        : p.subAdministrativeArea?.isNotEmpty == true
+            ? p.subAdministrativeArea
+            : p.administrativeArea?.isNotEmpty == true
+                ? p.administrativeArea
+                : null;
 
-    for (final result in results) {
-      final components =
-          (result['address_components'] as List<dynamic>?) ?? [];
-      for (final component in components) {
-        final types = List<String>.from(component['types'] as List);
-        if (types.contains('locality') && city == null) {
-          city = component['long_name'] as String?;
-        }
-        if (types.contains('country')) {
-          country = component['long_name'] as String?;
-          countryCode = component['short_name'] as String?;
-        }
-      }
-      if (city != null && country != null) break;
-    }
+    final country =
+        p.country?.isNotEmpty == true ? p.country : null;
 
-    return GeocodingResult(city: city, country: country, countryCode: countryCode);
+    // The geocoding package doesn't expose ISO country codes directly,
+    // so we derive a 2-letter code from the isoCountryCode field.
+    final countryCode =
+        p.isoCountryCode?.isNotEmpty == true ? p.isoCountryCode! : '';
+
+    return GeocodingResult(
+      city: city,
+      country: country,
+      countryCode: countryCode,
+    );
   }
 
   /// Returns every Nth element from the list.
@@ -167,12 +168,9 @@ class GeocodingService {
     await prefs.remove(_countriesCacheKey);
   }
 
-  // World exploration percentage 
+  // ── World exploration percentage ──────────────────────────────────────────
 
   /// Computes the percentage of Earth's surface covered by visited circles.
-  ///
-  /// Each visited point has a 50m radius circle (area = π × 50² ≈ 7854 m²).
-  /// Earth's surface area = 510,072,000 km² = 5.10072 × 10^14 m².
   static double computeWorldExploredPercent(List<VisitedPoint> points) {
     if (points.isEmpty) return 0.0;
     const double circleAreaM2 = 3.14159265 * 50 * 50; // ~7854 m²
