@@ -44,6 +44,11 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
 - Tap the location FAB to re-centre the map on your position
 - **Floating weather widget** showing live temperature and conditions at your current location
 
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Exploration%20Path.JPG" width="550">
+</div>
+
 ### Check-In System
 - Long-press anywhere on the map to save a check-in at that location
 - Choose from 12 preset emoji labels (Favourite, Food, Café, Bar, Attraction, Shopping, Nature, Music, Art, Hotel, Study, Gym) or use any custom emoji
@@ -51,11 +56,19 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
 - Option to attach the **real-time weather** at the moment of check-in — so "it was sunny in Paris" is captured forever
 - Edit or delete any check-in at any time
 
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/CheckInSystem.JPG">
+</div>
+
 ### Shake to Check-In
 - Shake your phone to instantly save a check-in at your current GPS location
 - Auto-named ("Untitled 1", "Untitled 2", …) with weather captured automatically — designed for spontaneous moments when you don't want to stop and type
 - Uses the device **accelerometer sensor** with a configurable threshold and cooldown to prevent accidental triggers
 - A brief toast notification confirms the save
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Shack_To_Checkin.gif" width="400">
+</div>
 
 ### Locations Screen
 - Full list of all your saved check-ins with reverse geocoding (city and country displayed on each card)
