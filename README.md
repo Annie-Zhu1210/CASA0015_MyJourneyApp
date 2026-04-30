@@ -108,10 +108,18 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
 - Toggle location privacy per friend (groundwork for future live location sharing)
 - My Race leaderboard with Cities and Countries tabs, gold / silver / bronze podium styling
 
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Friends.JPG" width="400">
+</div>
+
 ### Share
 - Share any location two ways from the detail screen or map info panel:
   - **Share to Social Media** — generates a branded card image and opens the iOS native share sheet for WhatsApp, Instagram, Messages, etc.
   - **Post to Noticeboard** — publishes the location to the in-app community feed for others to discover and import
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Share.JPG" width="600">
+</div>
 
 ### Account & Settings
 - Google Sign-In via Firebase Authentication — mandatory on first launch, remembered on return
@@ -121,6 +129,12 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
 - Upload a custom avatar (stored as Base64 in Firestore)
 - Map style preference (Standard / Satellite / Dark), persisted across sessions
 - Log out or permanently delete account with full data cleanup
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/LoginScreen.PNG" width="200">
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/SettingsScreen.PNG" width="200">
+</div>
 
 ---
 
