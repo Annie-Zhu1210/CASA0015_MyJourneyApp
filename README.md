@@ -77,8 +77,19 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
   - **Label** — groups by emoji label type
   - **My Collections** — user-created custom collections with drag-and-drop ordering; locations can be dragged directly onto a collection card to add them
   - **From Friends** — locations imported from the community noticeboard
+  
+  <div align="center">
+    <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/LocationsScreen.JPG" >
+  </div>
+  
 - Tap any check-in to open a full detail view showing weather, notes, photos, coordinates, and date saved
 - Edit, delete, and share from the detail view
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/LocationScreenDrag1.gif" width="250">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/LocationScreenDrag2.gif" width="250">
+</div>
 
 ### World Screen
 - **Cities Visited** — count of unique cities explored, tap to see the full list
@@ -86,6 +97,10 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
 - **Friends** — friend count, tap to manage your friends list
 - **My Race** — leaderboard comparing your cities and countries count against friends, with a pyramid podium for the top three
 - **Community Noticeboard** — a real-time public feed of locations shared by all users; tap a card to read full details and import it to your From Friends list; long-press your own posts to delete them
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/WorldScreen.JPG" width="850">
+</div>
 
 ### Friends & Social
 - Add friends by username (`@handle`) or unique friend code (`JOURNEY-XXXX`)
