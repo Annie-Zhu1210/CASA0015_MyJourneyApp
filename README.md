@@ -44,9 +44,10 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
 - Tap the location FAB to re-centre the map on your position
 - **Floating weather widget** showing live temperature and conditions at your current location
 
-
 <div align="center">
-  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Exploration%20Path.JPG" width="550">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Fog_of_War.gif" width="180">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Exploration%20Path.JPG" width="540">
 </div>
 
 ### Check-In System
@@ -89,6 +90,8 @@ My Journey solves this by giving users a map-centred, sensor-aware tool to captu
   <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/LocationScreenDrag1.gif" width="250">
   &nbsp;&nbsp;&nbsp;
   <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/LocationScreenDrag2.gif" width="250">
+  <br>
+  <sub>Drag-and-drop to order the list and add locations to a collection </sub>
 </div>
 
 ### World Screen
@@ -211,6 +214,11 @@ An Android release APK is available for direct installation without needing Flut
 2. Transfer it to your Android device
 3. Enable **Install from Unknown Sources** in your device settings if prompted
 4. Open the APK file to install
+
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Android_Phone_Appearance_on_Simulator.gif" width="150"><br>
+  <sub>Android Phone Appearance on Simulator</sub>
+</div>
 
 ### iOS — Build from Source
 
