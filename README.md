@@ -16,6 +16,14 @@ Beyond personal memory, My Journey connects people. Locations can be shared to s
 
 ## Demo
 
+The three Demo videos show the **long-press to check in, check-in location organisation, and share features**, respectively.
+<div align="center">
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Demo1.gif" width="250">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Demo2.gif" width="250">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/Media/Demo3.gif" width="250">
+</div>
 
 ---
 
