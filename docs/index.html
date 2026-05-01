@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Journey — Record the Beauty of Life</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=DM+Sans:wght@300;400;500;600&family=Comfortaa:wght@400;700&display=swap"
+    rel="stylesheet" />
+
+  <style>
+    /* ── CSS Variables ─────────────────────────────────────────────────── */
+    :root {
+      --orange: #E05A00;
+      --orange-soft: #FF8C42;
+      --yellow: #FFD227;
+      --yellow-pale: #FFF3C4;
+      --cream: #FFF8F0;
+      --cream-dark: #FFF0DC;
+      --brown: #3E1F00;
+      --brown-mid: #7A3D00;
+      --brown-light: #B07040;
+      --white: #FFFFFF;
+      --shadow: rgba(62, 31, 0, 0.10);
+    }
+
+    /* ── Reset ─────────────────────────────────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--cream);
+      color: var(--brown);
+      overflow-x: hidden;
+    }
+
+    img {
+      max-width: 100%;
+      display: block;
+    }
+
+    a {
+      text-decoration: none;
+      color: inherit;
+    }
+
+    /* ── Utility ────────────────────────────────────────────────────────── */
+    .container {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 32px;
+    }
+
+    .tag {
+      display: inline-block;
+      background: var(--yellow);
+      color: var(--brown-mid);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.4px;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      border-radius: 20px;
+    }
+
+    /* ── Fade-in on scroll ─────────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  NAV                                                                */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 40px;
+      background: rgba(255, 248, 240, 0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255, 210, 39, 0.25);
+      transition: box-shadow 0.3s;
+    }
+
+    nav.scrolled {
+      box-shadow: 0 4px 24px var(--shadow);
+    }
+
+    .nav-brand {
+      font-family: 'Comfortaa', cursive;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--orange);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-brand span {
+      font-size: 22px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--brown-light);
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover {
+      color: var(--orange);
+    }
+
+    .nav-cta {
+      background: var(--orange);
+      color: var(--white) !important;
+      padding: 9px 22px;
+      border-radius: 22px;
+      font-weight: 600 !important;
+      font-size: 13px !important;
+      transition: background 0.2s, transform 0.15s !important;
+    }
+
+    .nav-cta:hover {
+      background: #c24e00 !important;
+      transform: translateY(-1px);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  HERO                                                               */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      padding: 120px 0 80px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Decorative background circles */
+    .hero::before {
+      content: '';
+      position: absolute;
+      width: 700px;
+      height: 700px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 210, 39, 0.18) 0%, transparent 70%);
+      top: -200px;
+      right: -200px;
+      pointer-events: none;
+    }
+
+    .hero::after {
+      content: '';
+      position: absolute;
+      width: 400px;
+      height: 400px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(224, 90, 0, 0.10) 0%, transparent 70%);
+      bottom: 0;
+      left: -100px;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+
+    .hero-label {
+      margin-bottom: 18px;
+      animation: fadeUp 0.7s ease both;
+    }
+
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(42px, 5vw, 64px);
+      font-weight: 900;
+      line-height: 1.1;
+      color: var(--brown);
+      margin-bottom: 22px;
+      animation: fadeUp 0.7s 0.1s ease both;
+    }
+
+    .hero h1 em {
+      font-style: italic;
+      color: var(--orange);
+    }
+
+    .hero-sub {
+      font-size: 17px;
+      line-height: 1.7;
+      color: var(--brown-light);
+      max-width: 440px;
+      margin-bottom: 38px;
+      font-weight: 300;
+      animation: fadeUp 0.7s 0.2s ease both;
+    }
+
+    .hero-buttons {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      animation: fadeUp 0.7s 0.3s ease both;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--orange);
+      color: var(--white);
+      padding: 14px 28px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 15px;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 6px 20px rgba(224, 90, 0, 0.30);
+    }
+
+    .btn-primary:hover {
+      background: #c24e00;
+      transform: translateY(-2px);
+      box-shadow: 0 10px 28px rgba(224, 90, 0, 0.38);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--brown-mid);
+      padding: 14px 28px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 15px;
+      border: 2px solid var(--yellow);
+      transition: background 0.2s, transform 0.15s;
+    }
+
+    .btn-secondary:hover {
+      background: var(--yellow-pale);
+      transform: translateY(-2px);
+    }
+
+    /* Hero phone mockup area */
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      animation: fadeUp 0.8s 0.2s ease both;
+      overflow: visible;
+    }
+
+    .phone-frame {
+      position: relative;
+      width: 260px;
+      overflow: visible;
+      margin: 0 80px;
+    }
+
+    .phone-shell {
+      background: var(--brown);
+      border-radius: 42px;
+      padding: 14px;
+      box-shadow:
+        0 30px 80px rgba(62, 31, 0, 0.30),
+        0 0 0 1px rgba(255, 210, 39, 0.15);
+    }
+
+    .phone-screen {
+      background: var(--cream-dark);
+      border-radius: 30px;
+      overflow: hidden;
+      aspect-ratio: 9/19;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .phone-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 30px;
+    }
+
+    .phone-screen .placeholder-text {
+      text-align: center;
+      color: var(--brown-light);
+      font-size: 13px;
+      padding: 20px;
+    }
+
+    .phone-screen .placeholder-text span {
+      font-size: 40px;
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    .phone-caption {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .phone-caption span {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--brown-light);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .phone-caption .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--orange);
+      display: inline-block;
+    }
+
+
+    @keyframes fadeUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  PROBLEM SECTION                                                    */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .problems {
+      background: var(--brown);
+      padding: 100px 0;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .problems::before {
+      content: '';
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 210, 39, 0.08) 0%, transparent 70%);
+      top: -100px;
+      left: -100px;
+    }
+
+    .problems-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .problems-header .tag {
+      margin-bottom: 16px;
+    }
+
+    .problems-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(32px, 4vw, 48px);
+      color: var(--cream);
+      line-height: 1.2;
+    }
+
+    .problems-header h2 em {
+      color: var(--yellow);
+      font-style: italic;
+    }
+
+    .problems-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .problem-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 210, 39, 0.15);
+      border-radius: 20px;
+      padding: 28px;
+      transition: background 0.25s, border-color 0.25s, transform 0.25s;
+    }
+
+    .problem-card:hover {
+      background: rgba(255, 210, 39, 0.07);
+      border-color: rgba(255, 210, 39, 0.35);
+      transform: translateY(-4px);
+    }
+
+    .problem-icon {
+      font-size: 32px;
+      margin-bottom: 14px;
+    }
+
+    .problem-card h3 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 8px;
+      letter-spacing: 0.2px;
+    }
+
+    .problem-card p {
+      font-size: 13px;
+      line-height: 1.65;
+      color: rgba(255, 248, 240, 0.65);
+      font-weight: 300;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  FEATURES SECTION                                                   */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .features {
+      padding: 110px 0;
+    }
+
+    .section-header {
+      text-align: center;
+      margin-bottom: 72px;
+    }
+
+    .section-header .tag {
+      margin-bottom: 16px;
+    }
+
+    .section-header h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(32px, 4vw, 48px);
+      line-height: 1.2;
+      color: var(--brown);
+      margin-bottom: 14px;
+    }
+
+    .section-header h2 em {
+      color: var(--orange);
+      font-style: italic;
+    }
+
+    .section-header p {
+      font-size: 16px;
+      color: var(--brown-light);
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.7;
+      font-weight: 300;
+    }
+
+    /* Feature row: alternating text/screenshot */
+    .feature-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 72px;
+      align-items: center;
+      margin-bottom: 100px;
+    }
+
+    .feature-row.reverse {
+      direction: rtl;
+    }
+
+    .feature-row.reverse>* {
+      direction: ltr;
+    }
+
+    .feature-text .feat-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--yellow-pale);
+      border: 1px solid rgba(255, 210, 39, 0.5);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--brown-mid);
+      margin-bottom: 18px;
+    }
+
+    .feature-text h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(26px, 3vw, 36px);
+      line-height: 1.2;
+      margin-bottom: 16px;
+      color: var(--brown);
+    }
+
+    .feature-text p {
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--brown-light);
+      margin-bottom: 22px;
+      font-weight: 300;
+    }
+
+    .feature-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      background: var(--yellow-pale);
+      border: 1px solid var(--yellow);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--brown-mid);
+    }
+
+    /* Screenshot placeholder */
+    .screenshot-box {
+      background: var(--cream-dark);
+      border-radius: 24px;
+      overflow: hidden;
+      max-width: 260px;
+      margin: 0 auto;
+      box-shadow: 0 20px 60px var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed rgba(255, 210, 39, 0.4);
+      position: relative;
+      /* Height driven by image — no fixed aspect-ratio so nothing gets cropped */
+    }
+
+    .screenshot-box img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 22px;
+    }
+
+    .screenshot-box .ph {
+      text-align: center;
+      padding: 24px;
+      color: var(--brown-light);
+      /* Give placeholder a minimum height so it looks reasonable */
+      min-height: 420px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .screenshot-box .ph span {
+      font-size: 36px;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .screenshot-box .ph p {
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  SCREENSHOTS GALLERY                                                */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .gallery {
+      background: var(--cream-dark);
+      padding: 100px 0;
+      overflow: hidden;
+    }
+
+    .gallery-scroll {
+      display: flex;
+      gap: 20px;
+      overflow-x: auto;
+      padding: 16px 32px 32px;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: thin;
+      scrollbar-color: var(--yellow) transparent;
+    }
+
+    .gallery-scroll::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .gallery-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .gallery-scroll::-webkit-scrollbar-thumb {
+      background: var(--yellow);
+      border-radius: 2px;
+    }
+
+    .gallery-item {
+      flex: 0 0 220px;
+      scroll-snap-align: start;
+      background: var(--cream);
+      border-radius: 20px;
+      overflow: hidden;
+      aspect-ratio: 9/19;
+      box-shadow: 0 12px 36px var(--shadow);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 2px dashed rgba(255, 210, 39, 0.4);
+    }
+
+    .gallery-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .gallery-item .ph {
+      text-align: center;
+      padding: 20px;
+      color: var(--brown-light);
+    }
+
+    .gallery-item .ph span {
+      font-size: 28px;
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .gallery-item .ph p {
+      font-size: 11px;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  TECH STACK                                                         */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .tech {
+      padding: 100px 0;
+    }
+
+    .tech-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 56px;
+    }
+
+    .tech-card {
+      background: var(--white);
+      border-radius: 18px;
+      padding: 24px 20px;
+      border: 1px solid rgba(255, 210, 39, 0.3);
+      box-shadow: 0 4px 16px var(--shadow);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .tech-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 32px var(--shadow);
+    }
+
+    .tech-card .tech-icon {
+      font-size: 28px;
+      margin-bottom: 10px;
+    }
+
+    .tech-card h4 {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--brown);
+      margin-bottom: 4px;
+    }
+
+    .tech-card p {
+      font-size: 12px;
+      color: var(--brown-light);
+      line-height: 1.5;
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  CTA BANNER                                                         */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .cta-banner {
+      background: linear-gradient(135deg, var(--orange) 0%, #c24e00 100%);
+      padding: 80px 0;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-banner::before {
+      content: '';
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      top: -300px;
+      right: -200px;
+    }
+
+    .cta-banner h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(30px, 4vw, 46px);
+      color: var(--white);
+      margin-bottom: 14px;
+      line-height: 1.2;
+    }
+
+    .cta-banner p {
+      font-size: 16px;
+      color: rgba(255, 255, 255, 0.80);
+      margin-bottom: 36px;
+      font-weight: 300;
+    }
+
+    .btn-white {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--white);
+      color: var(--orange);
+      padding: 14px 32px;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 15px;
+      transition: transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+      margin: 0 8px;
+    }
+
+    .btn-white:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+    }
+
+    .btn-outline-white {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: transparent;
+      color: var(--white);
+      padding: 13px 32px;
+      border-radius: 30px;
+      font-weight: 600;
+      font-size: 15px;
+      border: 2px solid rgba(255, 255, 255, 0.55);
+      transition: background 0.2s, transform 0.15s;
+      margin: 0 8px;
+    }
+
+    .btn-outline-white:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: translateY(-2px);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  FOOTER                                                             */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    footer {
+      background: var(--brown);
+      padding: 56px 0 32px;
+    }
+
+    .footer-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 40px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .footer-brand {
+      font-family: 'Comfortaa', cursive;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .footer-brand span {
+      font-size: 22px;
+    }
+
+    .footer-tagline {
+      font-size: 13px;
+      color: rgba(255, 248, 240, 0.5);
+      max-width: 260px;
+      line-height: 1.6;
+      font-weight: 300;
+    }
+
+    .footer-links h4 {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: var(--yellow);
+      margin-bottom: 14px;
+    }
+
+    .footer-links a {
+      display: block;
+      font-size: 13px;
+      color: rgba(255, 248, 240, 0.55);
+      margin-bottom: 8px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--cream);
+    }
+
+    .footer-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .footer-bottom p {
+      font-size: 12px;
+      color: rgba(255, 248, 240, 0.35);
+    }
+
+    .footer-bottom p a {
+      color: rgba(255, 248, 240, 0.55);
+      transition: color 0.2s;
+    }
+
+    .footer-bottom p a:hover {
+      color: var(--yellow);
+    }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /*  RESPONSIVE                                                         */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    @media (max-width: 820px) {
+      nav {
+        padding: 16px 24px;
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .hero {
+        padding: 100px 0 60px;
+      }
+
+      .hero-inner {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        text-align: center;
+      }
+
+      .hero-sub {
+        margin: 0 auto 32px;
+      }
+
+      .hero-buttons {
+        justify-content: center;
+      }
+
+      .badge-1,
+      .badge-2 {
+        display: none;
+      }
+
+      .feature-row,
+      .feature-row.reverse {
+        grid-template-columns: 1fr;
+        direction: ltr;
+        gap: 36px;
+        margin-bottom: 64px;
+        text-align: center;
+      }
+
+      .feature-pills {
+        justify-content: center;
+      }
+
+      .footer-top {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── NAV ─────────────────────────────────────────────────────────────── -->
+  <nav id="navbar">
+    <div class="nav-brand">
+      My Journey
+    </div>
+    <div class="nav-links">
+      <a href="#features">Features</a>
+      <a href="#screenshots">Screenshots</a>
+      <a href="#tech">Tech Stack</a>
+      <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp" target="_blank">GitHub</a>
+      <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/releases/tag/v1.0.0" class="nav-cta">Download
+        APK</a>
+    </div>
+  </nav>
+
+  <!-- ── HERO ────────────────────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-inner">
+        <div class="hero-content">
+          <div class="hero-label">
+            <span class="tag">CASA0015 · UCL Connected Environments</span>
+          </div>
+          <h1>Record the <em>Beauty</em> of Life</h1>
+          <p class="hero-sub">
+            My Journey is a map-based personal memoir — check in at the places that matter, capture the moment with
+            photos and weather, and share your story with the world.
+          </p>
+          <div class="hero-buttons">
+            <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/releases/tag/v1.0.0" class="btn-primary">
+              📲 Download for Android
+            </a>
+            <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp" class="btn-secondary">
+              View on GitHub →
+            </a>
+          </div>
+        </div>
+
+        <div class="hero-visual">
+          <div class="phone-frame">
+            <div class="phone-shell">
+              <div class="phone-screen">
+                <img src="screenshots/map.PNG" alt="Map Screen" />
+              </div>
+            </div>
+            <div class="phone-caption">
+              <span><span class="dot"></span> GPS Active</span>
+              <span>☀️ 21°C · Sunny</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── PROBLEMS ─────────────────────────────────────────────────────────── -->
+  <section class="problems">
+    <div class="container">
+      <div class="problems-header reveal">
+        <span class="tag">The Problem</span>
+        <h2>Our memories <em>deserve better</em> than a camera roll</h2>
+      </div>
+      <div class="problems-grid">
+        <div class="problem-card reveal">
+          <div class="problem-icon">📷</div>
+          <h3>Photos without context</h3>
+          <p>Albums record time and location but leave no space to capture the experience, the mood, or why a place
+            mattered to you.</p>
+        </div>
+        <div class="problem-card reveal">
+          <div class="problem-icon">🌫️</div>
+          <h3>No sense of exploration</h3>
+          <p>There is no visual record of how much of the world you have actually explored, making travel feel
+            unmemorable over time.</p>
+        </div>
+        <div class="problem-card reveal">
+          <div class="problem-icon">🔗</div>
+          <h3>Sharing is disconnected</h3>
+          <p>Recommending a place today means sending a link, a screenshot, or a text — all divorced from your personal
+            story about it.</p>
+        </div>
+        <div class="problem-card reveal">
+          <div class="problem-icon">⏱️</div>
+          <h3>Moments pass too fast</h3>
+          <p>By the time you open a notes app, the feeling is gone. There is no quick way to capture a memory before the
+            moment disappears.</p>
+        </div>
+        <div class="problem-card reveal">
+          <div class="problem-icon">🏆</div>
+          <h3>No shared sense of adventure</h3>
+          <p>Existing journalling apps are isolated — there is no way to see how your exploration compares to friends or
+            feel a sense of shared adventure.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FEATURES ─────────────────────────────────────────────────────────── -->
+  <section class="features" id="features">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="tag">How It Solves It</span>
+        <h2>Every feature, <em>purposefully</em> designed</h2>
+        <p>My Journey turns each problem into a delightful interaction — powered by GPS, sensors, live APIs, and a
+          connected community.</p>
+      </div>
+
+      <!-- Feature 1: Check-in -->
+      <div class="feature-row reveal">
+        <div class="feature-text">
+          <div class="feat-tag">📍 Check-In System</div>
+          <h3>Capture the moment, in full</h3>
+          <p>Long-press anywhere on the map to create a check-in. Add an emoji label, a place name, personal notes, and
+            photos from your gallery or camera. The app asks if you want to record the live weather — so "it was raining
+            in Tokyo" is captured forever, tied to that exact GPS coordinate.</p>
+          <div class="feature-pills">
+            <span class="pill">12 emoji labels</span>
+            <span class="pill">Photo gallery</span>
+            <span class="pill">Real-time weather</span>
+            <span class="pill">Personal notes</span>
+          </div>
+        </div>
+        <div class="screenshot-box">
+          <img src="screenshots/checkin.PNG" alt="Check-in screen" />
+        </div>
+      </div>
+
+      <!-- Feature 2: Fog of war -->
+      <div class="feature-row reverse reveal">
+        <div class="feature-text">
+          <div class="feat-tag">🌫️ Exploration Path</div>
+          <h3>Watch your world unfold</h3>
+          <p>The map starts covered in a soft fog. As you physically move through the world, the fog clears to reveal
+            where you have been — a growing, visual memoir of your entire life's movement. Built with a custom Flutter
+            painter and BlendMode rendering, persisted across sessions.</p>
+          <div class="feature-pills">
+            <span class="pill">Fog-of-war overlay</span>
+            <span class="pill">GPS trail</span>
+            <span class="pill">Persisted locally</span>
+          </div>
+        </div>
+        <div class="screenshot-box">
+          <img src="screenshots/fog.PNG" alt="Exploration fog" />
+        </div>
+      </div>
+
+      <!-- Feature 3: Shake -->
+      <div class="feature-row reveal">
+        <div class="feature-text">
+          <div class="feat-tag">📳 Shake to Check-In</div>
+          <h3>Too good to pause for your phone?</h3>
+          <p>Shake your device and My Journey instantly saves a check-in at your GPS location — no tapping, no typing.
+            The accelerometer sensor detects a genuine shake (above 2.7g, three spikes in 800ms) and saves the moment
+            with weather attached before you've even put your phone back in your pocket.</p>
+          <div class="feature-pills">
+            <span class="pill">Accelerometer sensor</span>
+            <span class="pill">Auto weather capture</span>
+            <span class="pill">10s cooldown</span>
+          </div>
+        </div>
+        <div class="screenshot-box">
+          <img src="screenshots/shake.PNG" alt="Shake toast" />
+        </div>
+      </div>
+
+      <!-- Feature 4: World + Race -->
+      <div class="feature-row reverse reveal">
+        <div class="feature-text">
+          <div class="feat-tag">🌍 World & My Race</div>
+          <h3>How far have you really gone?</h3>
+          <p>The World screen tallies every city and country your feet have touched, complete with flag emojis and
+            drill-down lists. The My Race leaderboard compares your cities and countries count against friends in real
+            time — with a gold, silver, bronze podium for the top three explorers.</p>
+          <div class="feature-pills">
+            <span class="pill">Cities & countries</span>
+            <span class="pill">Friends leaderboard</span>
+            <span class="pill">Podium ranking</span>
+            <span class="pill">Firestore real-time</span>
+          </div>
+        </div>
+        <div class="screenshot-box">
+          <img src="screenshots/world.PNG" alt="World screen" />
+        </div>
+      </div>
+
+      <!-- Feature 5: Noticeboard -->
+      <div class="feature-row reveal">
+        <div class="feature-text">
+          <div class="feat-tag">📢 Community Noticeboard</div>
+          <h3>Your story becomes someone else's discovery</h3>
+          <p>Share any check-in to a public noticeboard — a live community feed where anyone using My Journey can read
+            your notes, discover the place, and import it to their own collection. Or share a branded card image
+            directly to WhatsApp, Instagram, or any iOS share sheet.</p>
+          <div class="feature-pills">
+            <span class="pill">Public feed</span>
+            <span class="pill">Import to collections</span>
+            <span class="pill">Branded share card</span>
+            <span class="pill">iOS share sheet</span>
+          </div>
+        </div>
+        <div class="screenshot-box">
+          <img src="screenshots/noticeboard.png" alt="Noticeboard" />
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ── GALLERY ───────────────────────────────────────────────────────────── -->
+  <section class="gallery" id="screenshots">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="tag">Screenshots</span>
+        <h2>See it in <em>action</em></h2>
+        <p>Scroll to browse all screens — swipe horizontally on mobile.</p>
+      </div>
+    </div>
+    <div class="gallery-scroll">
+      <div class="gallery-item"><img src="screenshots/map.PNG" /></div>
+      <div class="gallery-item"><img src="screenshots/checkin.PNG" /></div>
+      <div class="gallery-item"><img src="screenshots/locations.PNG" /></div>
+      <div class="gallery-item"><img src="screenshots/collections.PNG" /></div>
+      <div class="gallery-item"><img src="screenshots/world.PNG" /></div>
+      <div class="gallery-item"><img src="screenshots/myrace.PNG" /></div>
+      <div class="gallery-item"><img src="screenshots/noticeboard.png" /></div>
+      <div class="gallery-item"><img src="screenshots/settings.PNG" /></div>
+    </div>
+  </section>
+
+  <!-- ── TECH STACK ────────────────────────────────────────────────────────── -->
+  <section class="tech" id="tech">
+    <div class="container">
+      <div class="section-header reveal">
+        <span class="tag">Technical Stack</span>
+        <h2>Built on a <em>connected</em> foundation</h2>
+        <p>My Journey integrates multiple external services to create a seamless bridge between the physical and digital
+          worlds.</p>
+      </div>
+      <div class="tech-grid">
+        <div class="tech-card reveal">
+          <div class="tech-icon">🗺️</div>
+          <h4>Google Maps SDK</h4>
+          <p>Real-time GPS, custom markers, satellite and dark map styles</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">🌤️</div>
+          <h4>OpenWeatherMap API</h4>
+          <p>Live weather fetched at check-in time and displayed on map</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">📍</div>
+          <h4>Google Geocoding API</h4>
+          <p>Reverse geocoding of GPS coordinates to city and country names</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">🔐</div>
+          <h4>Firebase Auth</h4>
+          <p>Google Sign-In with session persistence and full account deletion</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">☁️</div>
+          <h4>Cloud Firestore</h4>
+          <p>Real-time sync for user profiles, friends, and the noticeboard feed</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">💾</div>
+          <h4>SQLite (sqflite)</h4>
+          <p>On-device storage for check-ins, scoped per user UID</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">📳</div>
+          <h4>Accelerometer Sensor</h4>
+          <p>sensors_plus package — detects shake gestures at 2.7g threshold</p>
+        </div>
+        <div class="tech-card reveal">
+          <div class="tech-icon">📲</div>
+          <h4>Flutter / Dart</h4>
+          <p>Cross-platform framework, iOS primary target, Android APK available</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── CTA BANNER ────────────────────────────────────────────────────────── -->
+  <section class="cta-banner">
+    <div class="container reveal">
+      <h2>Start recording your journey today</h2>
+      <p>Available on Android · Build from source for iOS</p>
+      <div>
+        <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/releases/tag/v1.0.0" class="btn-white">
+          📲 Download APK
+        </a>
+        <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp" class="btn-outline-white">
+          View Source on GitHub
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ────────────────────────────────────────────────────────────── -->
+  <footer>
+    <div class="container">
+      <div class="footer-top">
+        <div>
+          <div class="footer-brand">🗺️ My Journey</div>
+          <p class="footer-tagline">Recording the beauty of life — a personal memoir of your journey.</p>
+        </div>
+        <div class="footer-links">
+          <h4>Project</h4>
+          <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp" target="_blank">GitHub Repository</a>
+          <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/releases/tag/v1.0.0" target="_blank">Latest
+            Release</a>
+          <a href="https://github.com/Annie-Zhu1210/CASA0015_MyJourneyApp/blob/main/README.md"
+            target="_blank">README</a>
+        </div>
+        <div class="footer-links">
+          <h4>Built With</h4>
+          <a href="https://flutter.dev" target="_blank">Flutter</a>
+          <a href="https://firebase.google.com" target="_blank">Firebase</a>
+          <a href="https://openweathermap.org" target="_blank">OpenWeatherMap</a>
+          <a href="https://developers.google.com/maps" target="_blank">Google Maps</a>
+        </div>
+        <div class="footer-links">
+          <h4>Contact</h4>
+          <a href="https://github.com/Annie-Zhu1210" target="_blank">@Annie-Zhu1210</a>
+          <span style="font-size:13px; color:rgba(255,248,240,0.55); display:block; margin-bottom:8px;">MSc Connected
+            Environments</span>
+          <span style="font-size:13px; color:rgba(255,248,240,0.55); display:block; margin-bottom:8px;">University
+            College London</span>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>© 2026 Annie Zhu</p>
+        <p>Built with <a href="https://flutter.dev" target="_blank">Flutter</a> · Powered by <a
+            href="https://firebase.google.com" target="_blank">Firebase</a></p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ── JS: scroll effects ──────────────────────────────────────────────── -->
+  <script>
+    // Nav shadow on scroll
+    const navbar = document.getElementById('navbar');
+    window.addEventListener('scroll', () => {
+      navbar.classList.toggle('scrolled', window.scrollY > 20);
+    });
+
+    // Reveal on scroll
+    const reveals = document.querySelectorAll('.reveal');
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry, i) => {
+        if (entry.isIntersecting) {
+          setTimeout(() => {
+            entry.target.classList.add('visible');
+          }, (entry.target.dataset.delay || 0));
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12 });
+    reveals.forEach(el => observer.observe(el));
+  </script>
+
+</body>
+
+</html>
